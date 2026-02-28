@@ -56,7 +56,7 @@ Scheduler semantics:
 Notifications are configured with `notify`, `notify_url`, `notify_attach_log`, `notify_retry`, and `notify_backoff`.
 
 - `notify_url` must be a valid Apprise URL
-- dtask sends through `apprise-go` CLI
+- dtask sends through `apprise` Python CLI
 - if `notify_attach_log` is `fail` or `always`, provider attachment support is validated at startup
 
 ## Local Development
@@ -91,7 +91,7 @@ bun run build
 - BusyBox core tools (e.g. `tar`)
 - `tzdata`
 - `ca-certificates`
-- `apprise-go` notification CLI
+- Python `apprise` notification CLI
 
 ## Versioning and Releases
 

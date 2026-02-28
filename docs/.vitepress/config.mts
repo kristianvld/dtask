@@ -8,9 +8,9 @@ export default defineConfig({
   title: 'dtask',
   description: 'Docker task runner for Docker Compose stacks',
   base,
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }]],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }]],
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/favicon.svg',
     nav: [{ text: 'Documentation', link: '/' }],
     sidebar: [
       {
