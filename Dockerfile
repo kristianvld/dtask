@@ -19,7 +19,7 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     tzdata \
-  && pip3 install --no-cache-dir apprise \
+  && pip3 install --no-cache-dir --break-system-packages apprise \
   && adduser -D -h /home/dtask dtask \
   && mkdir -p /tmp/dtask/logs
 
