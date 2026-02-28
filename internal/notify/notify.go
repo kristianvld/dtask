@@ -65,10 +65,10 @@ type CommandSender struct {
 }
 
 func NewCommandSender() (*CommandSender, error) {
-	if b, err := exec.LookPath("apprise-go"); err == nil {
+	if b, err := exec.LookPath("apprise"); err == nil {
 		return &CommandSender{binary: b}, nil
 	}
-	return nil, fmt.Errorf("apprise-go binary not found in PATH")
+	return nil, fmt.Errorf("apprise binary not found in PATH")
 }
 
 func (s *CommandSender) Send(ctx context.Context, req Request) error {
