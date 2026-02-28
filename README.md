@@ -2,6 +2,10 @@
 
 Lightweight Docker task runner for Docker Compose stacks.
 
+<p align="center">
+  <img src="./docs/public/logo.svg" alt="dtask logo" style="max-width: 16em; width:40%; min-width: 7em; background-color: #fff; padding: 1em; border-radius: 2em; border: 0.5em solid #26457D;">
+</p>
+
 - Docs: <https://kristianvld.github.io/dtask/>
 - Repo: <https://github.com/kristianvld/dtask>
 - Image: `ghcr.io/kristianvld/dtask`
@@ -52,7 +56,7 @@ Scheduler semantics:
 Notifications are configured with `notify`, `notify_url`, `notify_attach_log`, `notify_retry`, and `notify_backoff`.
 
 - `notify_url` must be a valid Apprise URL
-- dtask sends through `apprise-go` or `apprise` CLI
+- dtask sends through `apprise-go` CLI
 - if `notify_attach_log` is `fail` or `always`, provider attachment support is validated at startup
 
 ## Local Development
@@ -87,7 +91,7 @@ bun run build
 - BusyBox core tools (e.g. `tar`)
 - `tzdata`
 - `ca-certificates`
-- Apprise CLI dependencies
+- `apprise-go` notification CLI
 
 ## Versioning and Releases
 
@@ -96,4 +100,3 @@ Releases are semver tag driven (`vX.Y.Z`) through GitHub Actions:
 - publish multi-arch image to GHCR (`linux/amd64`, `linux/arm64`)
 - image tags: `latest`, `X`, `X.Y`, `X.Y.Z`
 - create GitHub release notes
-

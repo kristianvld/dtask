@@ -1,5 +1,7 @@
 # dtask
 
+![dtask logo](./logo.svg)
+
 `dtask` is a lightweight Docker task runner designed for Docker Compose.
 
 Documentation site: <https://kristianvld.github.io/dtask/>
@@ -584,7 +586,7 @@ environment:
   - invalid URLs fail configuration.
 - Notes:
   - this can be set globally (`notify_url`) or per task (`task.notify_url`).
-  - dtask uses `apprise-go` or `apprise` CLI inside the container to deliver notifications.
+  - dtask uses `apprise-go` CLI inside the container to deliver notifications.
 
 Example:
 
