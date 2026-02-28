@@ -2,6 +2,8 @@
 
 `dtask` is a lightweight Docker task runner designed for Docker Compose.
 
+Documentation site: <https://kristianvld.github.io/dtask/>
+
 `dtask` arrose from a desire to solve the `co-location` problem of scheduling tasks on the host system outside of container context. For instance, running `docker compose up --build --pull -d` within the current compose stack every night or schedule other host-level tasks.
 
 One could alternativly solve this using `cron` or `systemd` timers, but that splits the location of defining the schedule for the task and the actual script to run, far away from each other. Alternativly, a bit of configuration of existing docker scheduling containers such as [mcuadros/ofelia](https://github.com/mcuadros/ofelia/) could solve this, but that would require mounting the current directory, make sure paths are correct when mounting or hardcoding the current directory path, which breaks if you copy the compose file to a different location or want to reuse a section.
@@ -582,6 +584,7 @@ environment:
   - invalid URLs fail configuration.
 - Notes:
   - this can be set globally (`notify_url`) or per task (`task.notify_url`).
+  - dtask uses `apprise-go` or `apprise` CLI inside the container to deliver notifications.
 
 Example:
 
