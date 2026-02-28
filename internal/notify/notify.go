@@ -68,10 +68,7 @@ func NewCommandSender() (*CommandSender, error) {
 	if b, err := exec.LookPath("apprise-go"); err == nil {
 		return &CommandSender{binary: b}, nil
 	}
-	if b, err := exec.LookPath("apprise"); err == nil {
-		return &CommandSender{binary: b}, nil
-	}
-	return nil, fmt.Errorf("neither apprise-go nor apprise binary found in PATH")
+	return nil, fmt.Errorf("apprise-go binary not found in PATH")
 }
 
 func (s *CommandSender) Send(ctx context.Context, req Request) error {
