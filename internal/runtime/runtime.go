@@ -21,6 +21,8 @@ type Env interface {
 	EffectiveUID() int
 	Stat(path string) (os.FileInfo, error)
 	ReadFile(path string) ([]byte, error)
+	ReadDir(path string) ([]string, error)
+	Hostname() (string, error)
 }
 
 type RealEnv struct{}
@@ -35,6 +37,22 @@ func (RealEnv) Stat(path string) (os.FileInfo, error) {
 
 func (RealEnv) ReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
+}
+
+func (RealEnv) ReadDir(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, e.Name())
+	}
+	return out, nil
+}
+
+func (RealEnv) Hostname() (string, error) {
+	return os.Hostname()
 }
 
 func Prepare(cfg *config.Config, env Env) (Prepared, error) {
@@ -113,25 +131,9 @@ func DetectComposeWorkingDir(env Env) (string, error) {
 		env = RealEnv{}
 	}
 
-	cgroupRaw, err := env.ReadFile("/proc/self/cgroup")
+	containerID, err := detectContainerID(env)
 	if err != nil {
-		return "", fmt.Errorf(
-			"run=compose could not read /proc/self/cgroup: %w. "+
-				"This is required to detect the current container and resolve the compose stack directory. "+
-				"On Docker Desktop (macOS/Windows), this detection can be unsupported or behave differently; "+
-				"prefer run=container (or run=host with explicit cwd) unless validated in your environment",
-			err,
-		)
-	}
-	containerID, err := ParseContainerID(string(cgroupRaw))
-	if err != nil {
-		return "", fmt.Errorf(
-			"run=compose could not detect container id from /proc/self/cgroup: %w. "+
-				"This is required to read Docker metadata and resolve the compose stack directory. "+
-				"On Docker Desktop (macOS/Windows), this detection can be unsupported or behave differently; "+
-				"prefer run=container (or run=host with explicit cwd) unless validated in your environment",
-			err,
-		)
+		return "", err
 	}
 
 	cfgPath := filepath.Join("/host/var/lib/docker/containers", containerID, "config.v2.json")
@@ -167,6 +169,60 @@ func DetectComposeWorkingDir(env Env) (string, error) {
 		return "", fmt.Errorf("compose working dir from label is not absolute: %q", wd)
 	}
 	return filepath.Clean(wd), nil
+}
+
+func detectContainerID(env Env) (string, error) {
+	if cgroupRaw, err := env.ReadFile("/proc/self/cgroup"); err == nil {
+		if id, parseErr := ParseContainerID(string(cgroupRaw)); parseErr == nil {
+			if resolved, resolveErr := resolveContainerIDCandidate(env, id); resolveErr == nil {
+				return resolved, nil
+			}
+		}
+	}
+
+	hostname, err := env.Hostname()
+	if err == nil {
+		if resolved, resolveErr := resolveContainerIDCandidate(env, hostname); resolveErr == nil {
+			return resolved, nil
+		}
+	}
+
+	return "", fmt.Errorf(
+		"run=compose could not detect container id from /proc/self/cgroup or hostname. " +
+			"This is required to read Docker metadata and resolve the compose stack directory. " +
+			"On Docker Desktop (macOS/Windows), this detection can be unsupported or behave differently; " +
+			"prefer run=container (or run=host with explicit cwd) unless validated in your environment",
+	)
+}
+
+func resolveContainerIDCandidate(env Env, candidate string) (string, error) {
+	id := strings.ToLower(strings.TrimSpace(candidate))
+	if len(id) < 12 || len(id) > 64 || !isHex(id) {
+		return "", fmt.Errorf("invalid container id candidate %q", candidate)
+	}
+	if len(id) == 64 {
+		return id, nil
+	}
+
+	names, err := env.ReadDir("/host/var/lib/docker/containers")
+	if err != nil {
+		return "", fmt.Errorf("unable to list docker container metadata directory: %w", err)
+	}
+
+	matches := []string{}
+	for _, name := range names {
+		n := strings.ToLower(strings.TrimSpace(name))
+		if len(n) == 64 && isHex(n) && strings.HasPrefix(n, id) {
+			matches = append(matches, n)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("multiple container metadata matches for id prefix %q", id)
+	}
+	return "", fmt.Errorf("no container metadata match for id prefix %q", id)
 }
 
 func ParseContainerID(cgroup string) (string, error) {

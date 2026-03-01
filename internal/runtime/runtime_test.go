@@ -11,9 +11,11 @@ import (
 )
 
 type fakeEnv struct {
-	uid   int
-	files map[string][]byte
-	dirs  map[string]bool
+	uid        int
+	files      map[string][]byte
+	dirs       map[string]bool
+	dirEntries map[string][]string
+	hostname   string
 }
 
 func (f fakeEnv) EffectiveUID() int { return f.uid }
@@ -34,6 +36,23 @@ func (f fakeEnv) ReadFile(path string) ([]byte, error) {
 		return nil, os.ErrNotExist
 	}
 	return v, nil
+}
+
+func (f fakeEnv) ReadDir(path string) ([]string, error) {
+	v, ok := f.dirEntries[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	out := make([]string, len(v))
+	copy(out, v)
+	return out, nil
+}
+
+func (f fakeEnv) Hostname() (string, error) {
+	if f.hostname == "" {
+		return "", os.ErrNotExist
+	}
+	return f.hostname, nil
 }
 
 type fakeInfo struct {
@@ -131,6 +150,9 @@ func TestPrepareComposeValidation(t *testing.T) {
 			"/proc/self/cgroup": []byte("0::/docker/" + id),
 			metaPath:            []byte(`{"Config":{"Labels":{"com.docker.compose.project.working_dir":"/srv/stack"}}}`),
 		},
+		dirEntries: map[string][]string{
+			"/host/var/lib/docker/containers": {id},
+		},
 	}
 	prepared, err := Prepare(&cfg, env)
 	if err != nil {
@@ -138,6 +160,62 @@ func TestPrepareComposeValidation(t *testing.T) {
 	}
 	if prepared.ComposeDir != "/srv/stack" {
 		t.Fatalf("compose dir=%s", prepared.ComposeDir)
+	}
+}
+
+func TestDetectComposeWorkingDirFallbackToHostnamePrefix(t *testing.T) {
+	t.Parallel()
+	id := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	metaPath := filepath.Join("/host/var/lib/docker/containers", id, "config.v2.json")
+	env := fakeEnv{
+		uid:      0,
+		hostname: id[:12],
+		dirs: map[string]bool{
+			"/host": true,
+		},
+		files: map[string][]byte{
+			"/host/bin/bash":    []byte(""),
+			"/proc/self/cgroup": []byte("0::/\n"),
+			metaPath:            []byte(`{"Config":{"Labels":{"com.docker.compose.project.working_dir":"/srv/stack"}}}`),
+		},
+		dirEntries: map[string][]string{
+			"/host/var/lib/docker/containers": {id},
+		},
+	}
+	wd, err := DetectComposeWorkingDir(env)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if wd != "/srv/stack" {
+		t.Fatalf("wd=%s", wd)
+	}
+}
+
+func TestDetectComposeWorkingDirFallbackWhenCgroupIDUnresolvable(t *testing.T) {
+	t.Parallel()
+	id := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	metaPath := filepath.Join("/host/var/lib/docker/containers", id, "config.v2.json")
+	env := fakeEnv{
+		uid:      0,
+		hostname: id,
+		dirs: map[string]bool{
+			"/host": true,
+		},
+		files: map[string][]byte{
+			"/host/bin/bash":    []byte(""),
+			"/proc/self/cgroup": []byte("0::/docker/aaaaaaaaaaaa"),
+			metaPath:            []byte(`{"Config":{"Labels":{"com.docker.compose.project.working_dir":"/srv/stack"}}}`),
+		},
+		dirEntries: map[string][]string{
+			"/host/var/lib/docker/containers": {id},
+		},
+	}
+	wd, err := DetectComposeWorkingDir(env)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if wd != "/srv/stack" {
+		t.Fatalf("wd=%s", wd)
 	}
 }
 
