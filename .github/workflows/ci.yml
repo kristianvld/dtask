@@ -101,7 +101,7 @@ jobs:
             -e host.cmd=true \
             dtask:ci 2>&1 || true)"
           echo "$out"
-          echo "$out" | rg "require /host mount"
+          echo "$out" | grep -F "require /host mount"
 
       - name: Verify clear error when not root
         run: |
@@ -114,7 +114,7 @@ jobs:
             -e host.cmd=true \
             dtask:ci 2>&1 || true)"
           echo "$out"
-          echo "$out" | rg "require root for chroot"
+          echo "$out" | grep -F "require root for chroot"
 
       - name: Verify clear error when host shell is missing
         run: |
@@ -127,7 +127,7 @@ jobs:
             -e host.cmd=true \
             dtask:ci 2>&1 || true)"
           echo "$out"
-          echo "$out" | rg 'shell "/definitely-not-a-shell" not found on host'
+          echo "$out" | grep -F 'shell "/definitely-not-a-shell" not found on host'
 
       - name: Verify clear error when compose label is missing
         run: |
@@ -139,4 +139,4 @@ jobs:
             -e compose.cmd=true \
             dtask:ci 2>&1 || true)"
           echo "$out"
-          echo "$out" | rg "missing docker label com.docker.compose.project.working_dir"
+          echo "$out" | grep -F "missing docker label com.docker.compose.project.working_dir"
