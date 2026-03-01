@@ -6,7 +6,15 @@ import (
 )
 
 func TestParseEnvironmentValidAllOptions(t *testing.T) {
-	t.Parallel()
+	oldValidate := validateNotifyURL
+	oldSupports := supportsNotifyAttachment
+	validateNotifyURL = func(string) error { return nil }
+	supportsNotifyAttachment = func(string) (bool, error) { return true, nil }
+	t.Cleanup(func() {
+		validateNotifyURL = oldValidate
+		supportsNotifyAttachment = oldSupports
+	})
+
 	env := []string{
 		"PATH=/usr/bin",
 		"run=container",
@@ -61,7 +69,25 @@ func TestParseEnvironmentValidAllOptions(t *testing.T) {
 }
 
 func TestParseEnvironmentErrors(t *testing.T) {
-	t.Parallel()
+	oldValidate := validateNotifyURL
+	oldSupports := supportsNotifyAttachment
+	validateNotifyURL = func(raw string) error {
+		if raw == "://bad" {
+			return errInvalidNotifyURL
+		}
+		return nil
+	}
+	supportsNotifyAttachment = func(raw string) (bool, error) {
+		if raw == "custom://x" {
+			return false, nil
+		}
+		return true, nil
+	}
+	t.Cleanup(func() {
+		validateNotifyURL = oldValidate
+		supportsNotifyAttachment = oldSupports
+	})
+
 	tests := []struct {
 		name string
 		env  []string
@@ -86,7 +112,6 @@ func TestParseEnvironmentErrors(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			if _, err := ParseEnvironment(tt.env); err == nil {
 				t.Fatalf("expected error")
 			}
@@ -95,7 +120,15 @@ func TestParseEnvironmentErrors(t *testing.T) {
 }
 
 func TestAllowlistEnvVars(t *testing.T) {
-	t.Parallel()
+	oldValidate := validateNotifyURL
+	oldSupports := supportsNotifyAttachment
+	validateNotifyURL = func(string) error { return nil }
+	supportsNotifyAttachment = func(string) (bool, error) { return true, nil }
+	t.Cleanup(func() {
+		validateNotifyURL = oldValidate
+		supportsNotifyAttachment = oldSupports
+	})
+
 	env := []string{
 		"PATH=/usr/bin",
 		"HOSTNAME=container",
@@ -110,4 +143,14 @@ func TestAllowlistEnvVars(t *testing.T) {
 	if _, err := ParseEnvironment(env); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+var errInvalidNotifyURL = &notifyURLError{msg: "invalid notify url"}
+
+type notifyURLError struct {
+	msg string
+}
+
+func (e *notifyURLError) Error() string {
+	return e.msg
 }

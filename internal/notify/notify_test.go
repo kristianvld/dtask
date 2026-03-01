@@ -3,7 +3,19 @@ package notify
 import "testing"
 
 func TestValidateURL(t *testing.T) {
-	t.Parallel()
+	oldInspect := inspectURL
+	inspectURL = func(raw string) (appriseProbeResult, error) {
+		switch raw {
+		case "discord://webhook_id/webhook_token":
+			return appriseProbeResult{Valid: true, AttachmentSupported: true}, nil
+		case "://bad":
+			return appriseProbeResult{Valid: false}, nil
+		default:
+			return appriseProbeResult{}, nil
+		}
+	}
+	t.Cleanup(func() { inspectURL = oldInspect })
+
 	if err := ValidateURL("discord://webhook_id/webhook_token"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -16,7 +28,19 @@ func TestValidateURL(t *testing.T) {
 }
 
 func TestSupportsAttachment(t *testing.T) {
-	t.Parallel()
+	oldInspect := inspectURL
+	inspectURL = func(raw string) (appriseProbeResult, error) {
+		switch raw {
+		case "discord://x/y":
+			return appriseProbeResult{Valid: true, AttachmentSupported: true}, nil
+		case "custom://x":
+			return appriseProbeResult{Valid: true, AttachmentSupported: false}, nil
+		default:
+			return appriseProbeResult{}, nil
+		}
+	}
+	t.Cleanup(func() { inspectURL = oldInspect })
+
 	ok, err := SupportsAttachment("discord://x/y")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

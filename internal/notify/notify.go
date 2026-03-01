@@ -2,51 +2,100 @@ package notify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-var attachmentSupportedSchemes = map[string]bool{
-	"discord":  true,
-	"gmail":    true,
-	"gotify":   true,
-	"ifttt":    true,
-	"mailto":   true,
-	"matrix":   true,
-	"ntfy":     true,
-	"pushover": true,
-	"slack":    true,
-	"telegram": true,
+const appriseProbeScript = `
+import json
+import sys
+
+try:
+    import apprise
+except Exception as exc:
+    print(json.dumps({"error": f"failed to import apprise: {exc}"}))
+    raise SystemExit(3)
+
+url = sys.argv[1].strip()
+if not url:
+    print(json.dumps({"valid": True, "attachment_supported": False}))
+    raise SystemExit(0)
+
+try:
+    plugin = apprise.Apprise.instantiate(url)
+except Exception as exc:
+    print(json.dumps({"valid": False, "attachment_supported": False, "error": str(exc)}))
+    raise SystemExit(0)
+
+print(json.dumps({
+    "valid": bool(plugin),
+    "attachment_supported": bool(getattr(plugin, "attachment_support", False)) if plugin else False
+}))
+`
+
+type appriseProbeResult struct {
+	Valid               bool   `json:"valid"`
+	AttachmentSupported bool   `json:"attachment_supported"`
+	Error               string `json:"error,omitempty"`
 }
+
+var inspectURL = inspectURLWithApprise
 
 func ValidateURL(raw string) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
 	}
-	u, err := url.Parse(raw)
+	res, err := inspectURL(raw)
 	if err != nil {
 		return fmt.Errorf("invalid notify_url: %w", err)
 	}
-	if u.Scheme == "" {
-		return fmt.Errorf("invalid notify_url: missing scheme")
+	if !res.Valid {
+		return fmt.Errorf("invalid notify_url: unsupported or malformed apprise URL")
 	}
 	return nil
 }
 
 func SupportsAttachment(raw string) (bool, error) {
-	u, err := url.Parse(strings.TrimSpace(raw))
+	res, err := inspectURL(strings.TrimSpace(raw))
 	if err != nil {
 		return false, fmt.Errorf("invalid notify_url: %w", err)
 	}
-	if u.Scheme == "" {
-		return false, fmt.Errorf("invalid notify_url: missing scheme")
+	if !res.Valid {
+		return false, fmt.Errorf("invalid notify_url: unsupported or malformed apprise URL")
 	}
-	_, ok := attachmentSupportedSchemes[strings.ToLower(u.Scheme)]
-	return ok, nil
+	return res.AttachmentSupported, nil
+}
+
+func inspectURLWithApprise(raw string) (appriseProbeResult, error) {
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		return appriseProbeResult{}, fmt.Errorf("python3 not found in PATH")
+	}
+
+	cmd := exec.Command(python, "-c", appriseProbeScript, raw)
+	cmd.Env = os.Environ()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		payload := strings.TrimSpace(string(out))
+		if payload == "" {
+			payload = err.Error()
+		}
+		return appriseProbeResult{}, fmt.Errorf("apprise probe failed: %s", payload)
+	}
+
+	var res appriseProbeResult
+	if err := json.Unmarshal(out, &res); err != nil {
+		return appriseProbeResult{}, fmt.Errorf("failed to parse apprise probe output: %w", err)
+	}
+	if res.Error != "" {
+		return appriseProbeResult{}, fmt.Errorf("apprise probe failed: %s", res.Error)
+	}
+	return res, nil
 }
 
 type Request struct {

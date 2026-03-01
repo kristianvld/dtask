@@ -122,6 +122,9 @@ var allOptionKeys = map[string]struct{}{
 	"cmd":               {},
 }
 
+var validateNotifyURL = notify.ValidateURL
+var supportsNotifyAttachment = notify.SupportsAttachment
+
 func ParseEnvironment(env []string) (Config, error) {
 	if len(env) == 0 {
 		env = os.Environ()
@@ -206,7 +209,7 @@ func ParseEnvironment(env []string) (Config, error) {
 		}
 
 		if t.NotifyAttachLog != AttachNever && strings.TrimSpace(t.NotifyURL) != "" {
-			ok, err := notify.SupportsAttachment(t.NotifyURL)
+			ok, err := supportsNotifyAttachment(t.NotifyURL)
 			if err != nil {
 				return Config{}, err
 			}
@@ -343,7 +346,7 @@ func applyOption(o *Options, key, value, scope string) error {
 			return fmt.Errorf("%s has invalid notify %q", scope, value)
 		}
 	case "notify_url":
-		if err := notify.ValidateURL(value); err != nil {
+		if err := validateNotifyURL(value); err != nil {
 			return fmt.Errorf("%s: %w", scope, err)
 		}
 		o.NotifyURL = value
