@@ -115,17 +115,34 @@ func DetectComposeWorkingDir(env Env) (string, error) {
 
 	cgroupRaw, err := env.ReadFile("/proc/self/cgroup")
 	if err != nil {
-		return "", fmt.Errorf("unable to read /proc/self/cgroup: %w", err)
+		return "", fmt.Errorf(
+			"run=compose could not read /proc/self/cgroup: %w. "+
+				"This is required to detect the current container and resolve the compose stack directory. "+
+				"On Docker Desktop (macOS/Windows), this detection can be unsupported or behave differently; "+
+				"prefer run=container (or run=host with explicit cwd) unless validated in your environment",
+			err,
+		)
 	}
 	containerID, err := ParseContainerID(string(cgroupRaw))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(
+			"run=compose could not detect container id from /proc/self/cgroup: %w. "+
+				"This is required to read Docker metadata and resolve the compose stack directory. "+
+				"On Docker Desktop (macOS/Windows), this detection can be unsupported or behave differently; "+
+				"prefer run=container (or run=host with explicit cwd) unless validated in your environment",
+			err,
+		)
 	}
 
 	cfgPath := filepath.Join("/host/var/lib/docker/containers", containerID, "config.v2.json")
 	raw, err := env.ReadFile(cfgPath)
 	if err != nil {
-		return "", fmt.Errorf("unable to read container metadata %q: %w", cfgPath, err)
+		return "", fmt.Errorf(
+			"run=compose could not read Docker container metadata %q: %w. "+
+				"Ensure /:/host is mounted and Docker container metadata is accessible from inside the dtask container",
+			cfgPath,
+			err,
+		)
 	}
 
 	var parsed struct {
@@ -139,7 +156,12 @@ func DetectComposeWorkingDir(env Env) (string, error) {
 
 	wd := strings.TrimSpace(parsed.Config.Labels["com.docker.compose.project.working_dir"])
 	if wd == "" {
-		return "", fmt.Errorf("missing docker label com.docker.compose.project.working_dir")
+		return "", fmt.Errorf(
+			"missing docker label com.docker.compose.project.working_dir. " +
+				"run=compose requires this Docker Compose label to resolve the stack directory. " +
+				"If this runtime does not expose the label (common on some Docker Desktop setups), " +
+				"use run=container or run=host with an explicit cwd",
+		)
 	}
 	if !filepath.IsAbs(wd) {
 		return "", fmt.Errorf("compose working dir from label is not absolute: %q", wd)
