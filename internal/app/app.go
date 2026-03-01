@@ -191,9 +191,13 @@ func (a *App) maybeNotifySkip(ctx context.Context, task config.Task) {
 	}
 
 	_ = a.sendNotificationWithRetry(ctx, task, notify.Request{
-		URL:   task.NotifyURL,
-		Title: fmt.Sprintf("dtask: %s skipped", task.Name),
-		Body:  "Task was skipped because a previous run is still in progress.",
+		URL:        task.NotifyURL,
+		NotifyType: "warning",
+		Title:      fmt.Sprintf("⏭️ dtask - %s skipped", task.Name),
+		Body: fmt.Sprintf(
+			"Task %q was skipped because a previous run is still in progress.\n\nNo action is needed unless this repeats frequently.",
+			task.Name,
+		),
 	})
 }
 
@@ -207,27 +211,82 @@ func (a *App) maybeNotifyResult(ctx context.Context, task config.Task, event str
 	}
 
 	req := notify.Request{
-		URL:   task.NotifyURL,
-		Title: fmt.Sprintf("dtask: %s %s", task.Name, event),
+		URL:        task.NotifyURL,
+		NotifyType: eventNotifyType(event),
+		Title:      fmt.Sprintf("%s dtask - %s", eventHeadline(event), task.Name),
 		Body: fmt.Sprintf(
-			"task=%s\nevent=%s\nattempt=%d\nexit_code=%d\ntimed_out=%t\nduration=%s\nerror=%v",
+			"%s for task %q.\n\nAttempt: %d\nExit code: %d\nTimed out: %s\nDuration: %s\nError: %s",
+			eventSentence(event),
 			task.Name,
-			event,
 			res.Attempt,
 			res.ExitCode,
-			res.TimedOut,
-			res.Duration,
-			res.Err,
+			boolLabel(res.TimedOut),
+			res.Duration.Round(time.Millisecond),
+			errorLabel(res.Err),
 		),
 	}
 
 	if includeLog(task.NotifyAttachLog, event) && res.LogPath != "" {
 		req.Attachments = append(req.Attachments, res.LogPath)
+		req.Body += "\nA full execution log is attached."
 	}
 
 	if err := a.sendNotificationWithRetry(ctx, task, req); err != nil {
 		a.logger.Printf("task=%s status=notify_failed err=%v", task.Name, err)
 	}
+}
+
+func eventHeadline(event string) string {
+	switch event {
+	case "success":
+		return "✅ Task completed"
+	case "retry_fail":
+		return "⚠️ Task failed (retrying)"
+	case "terminal_fail":
+		return "❌ Task failed"
+	default:
+		return "ℹ️ Task update"
+	}
+}
+
+func eventSentence(event string) string {
+	switch event {
+	case "success":
+		return "Task run completed successfully"
+	case "retry_fail":
+		return "Task run failed but will be retried"
+	case "terminal_fail":
+		return "Task run failed and no more retries are scheduled"
+	default:
+		return "Task state changed"
+	}
+}
+
+func eventNotifyType(event string) string {
+	switch event {
+	case "success":
+		return "success"
+	case "retry_fail":
+		return "warning"
+	case "terminal_fail":
+		return "failure"
+	default:
+		return "info"
+	}
+}
+
+func boolLabel(v bool) string {
+	if v {
+		return "yes"
+	}
+	return "no"
+}
+
+func errorLabel(err error) string {
+	if err == nil {
+		return "none"
+	}
+	return err.Error()
 }
 
 func shouldNotify(policy config.NotifyPolicy, event string) bool {

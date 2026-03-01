@@ -56,7 +56,9 @@ Scheduler semantics:
 Notifications are configured with `notify`, `notify_url`, `notify_attach_log`, `notify_retry`, and `notify_backoff`.
 
 - `notify_url` must be a valid Apprise URL
-- dtask sends through `apprise` Python CLI
+- dtask validates and sends notifications through Apprise Python
+- by default notifications use `dtask` branding (`app_id`, description, and logo)
+- override branding per URL with query params: `app_id`, `app_desc`, `app_url`, `image_url_logo`
 - if `notify_attach_log` is `fail` or `always`, provider attachment support is validated at startup
 
 ## Local Development
