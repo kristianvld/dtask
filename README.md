@@ -111,3 +111,20 @@ Releases are semver tag driven (`vX.Y.Z`) through GitHub Actions:
 - publish multi-arch image to GHCR (`linux/amd64`, `linux/arm64`)
 - image tags: `latest`, `X`, `X.Y`, `X.Y.Z`
 - create GitHub release notes
+
+Helper publish script:
+
+```bash
+# default: patch bump
+make publish
+
+# explicit bump level
+./scripts/publish.sh minor
+./scripts/publish.sh major
+```
+
+The script:
+
+- handles initial release when no prior tags exist
+- asks for confirmation before pushing
+- pushes local branch commits first, then creates and pushes the new semver tag
