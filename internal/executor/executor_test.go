@@ -109,6 +109,9 @@ func TestBuildCommandHostUserspec(t *testing.T) {
 	if !strings.Contains(args, "--userspec=1000:1000") {
 		t.Fatalf("expected userspec arg, got: %q", args)
 	}
+	if cmd.Path != "/usr/bin/chroot" {
+		t.Fatalf("expected coreutils chroot path, got: %q", cmd.Path)
+	}
 }
 
 func TestBuildCommandContainerUserCredential(t *testing.T) {

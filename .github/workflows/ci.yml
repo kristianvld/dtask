@@ -76,11 +76,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          rm -f /tmp/dtask-host-ok /tmp/dtask-host-user-ok /tmp/dtask-compose-ok
+          sudo rm -f /tmp/dtask-host-ok /tmp/dtask-host-user-ok /tmp/dtask-compose-ok
           compose_args=(--project-directory "$PWD" -f .github/integration/docker-compose.ci.yml)
           cleanup() {
             docker compose "${compose_args[@]}" down -v || true
-            rm -f /tmp/dtask-host-ok /tmp/dtask-host-user-ok /tmp/dtask-compose-ok
+            sudo rm -f /tmp/dtask-host-ok /tmp/dtask-host-user-ok /tmp/dtask-compose-ok
           }
           trap cleanup EXIT
 

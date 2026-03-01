@@ -21,6 +21,7 @@ RUN apk add --no-cache \
     bash \
     busybox \
     ca-certificates \
+    coreutils \
     python3 \
     py3-pip \
     tzdata \

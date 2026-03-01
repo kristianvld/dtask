@@ -168,7 +168,7 @@ func buildCommand(ctx context.Context, task config.Task, prepared runtime.Prepar
 		chrootArgv = append(chrootArgv, "/host")
 		chrootArgv = append(chrootArgv, shellArgv...)
 		chrootArgv = append(chrootArgv, cmdText)
-		return exec.CommandContext(ctx, "chroot", chrootArgv...), nil
+		return exec.CommandContext(ctx, "/usr/bin/chroot", chrootArgv...), nil
 	default:
 		return nil, fmt.Errorf("unknown run mode %q", task.Run)
 	}
