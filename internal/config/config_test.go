@@ -17,7 +17,8 @@ func TestParseEnvironmentValidAllOptions(t *testing.T) {
 
 	env := []string{
 		"PATH=/usr/bin",
-		"run=container",
+		"run=host",
+		"user=1000:1000",
 		"cwd=/work",
 		"tz=UTC",
 		"shell=/bin/sh -lc",
@@ -45,8 +46,11 @@ func TestParseEnvironmentValidAllOptions(t *testing.T) {
 	if task.Name != "backup" {
 		t.Fatalf("name=%s", task.Name)
 	}
-	if task.Run != RunContainer {
+	if task.Run != RunHost {
 		t.Fatalf("run=%s", task.Run)
+	}
+	if task.User != "1000:1000" {
+		t.Fatalf("user=%s", task.User)
 	}
 	if task.CWD != "/work" {
 		t.Fatalf("cwd=%s", task.CWD)
@@ -97,6 +101,7 @@ func TestParseEnvironmentErrors(t *testing.T) {
 		{name: "missing schedule", env: []string{"task.cmd=true"}},
 		{name: "missing cmd", env: []string{"task.schedule=1h"}},
 		{name: "bad run", env: []string{"run=nope", "task.schedule=1h", "task.cmd=true"}},
+		{name: "bad user", env: []string{"user=  ", "task.schedule=1h", "task.cmd=true"}},
 		{name: "bad timeout", env: []string{"timeout=-1s", "task.schedule=1h", "task.cmd=true"}},
 		{name: "bad retry", env: []string{"retry=-2", "task.schedule=1h", "task.cmd=true"}},
 		{name: "bad backoff", env: []string{"backoff=nope", "task.schedule=1h", "task.cmd=true"}},

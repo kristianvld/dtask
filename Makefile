@@ -16,7 +16,8 @@ test:
 	GOCACHE=$(GOCACHE) GOTMPDIR=$(GOTMPDIR) go test ./...
 
 lint:
-	GOCACHE=$(GOCACHE) GOTMPDIR=$(GOTMPDIR) go vet ./...
+	@command -v golangci-lint >/dev/null 2>&1 || (echo "golangci-lint not found. Install from https://golangci-lint.run/welcome/install/"; exit 1)
+	GOCACHE=$(GOCACHE) GOTMPDIR=$(GOTMPDIR) golangci-lint run
 
 build:
 	mkdir -p bin

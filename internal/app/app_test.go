@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"log"
 	"os"
@@ -173,6 +174,73 @@ func TestSendNotificationWithRetry(t *testing.T) {
 	}
 	if len(n.Requests()) != 1 {
 		t.Fatalf("expected one successful send, got %d", len(n.Requests()))
+	}
+}
+
+func TestLogStartupIncludesTaskDetails(t *testing.T) {
+	t.Parallel()
+	spec1, err := schedule.Parse("1h", "backup")
+	if err != nil {
+		t.Fatalf("parse schedule 1: %v", err)
+	}
+	spec2, err := schedule.Parse("0 2 * * 0", "update")
+	if err != nil {
+		t.Fatalf("parse schedule 2: %v", err)
+	}
+	bo, _ := backoff.Parse("fixed:1s")
+	cfg := config.Config{
+		Tasks: []config.Task{
+			{
+				Name: "backup",
+				Options: config.Options{
+					Run:           config.RunHost,
+					User:          "1000:1000",
+					CWD:           "/var/backups",
+					TZ:            "UTC",
+					Location:      time.UTC,
+					ShellArgv:     []string{"/bin/bash", "-lc"},
+					Backoff:       bo,
+					NotifyBackoff: bo,
+				},
+				Schedule: spec1,
+				Cmd:      "true",
+			},
+			{
+				Name: "update",
+				Options: config.Options{
+					Run:           config.RunCompose,
+					CWD:           ".",
+					TZ:            "auto",
+					ShellArgv:     []string{"/bin/bash", "-lc"},
+					Backoff:       bo,
+					NotifyBackoff: bo,
+				},
+				Schedule: spec2,
+				Cmd:      "true",
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	a := &App{
+		cfg:      cfg,
+		prepared: runtime.Prepared{AutoTZ: time.UTC, ComposeDir: "/srv/stack"},
+		logger:   log.New(&buf, "", 0),
+	}
+	a.logStartup()
+	out := buf.String()
+
+	if !strings.Contains(out, "status=startup_complete tasks=2") {
+		t.Fatalf("missing startup summary log: %q", out)
+	}
+	if !strings.Contains(out, `status=task_scheduled task=backup run=host user=1000:1000`) {
+		t.Fatalf("missing backup task startup log: %q", out)
+	}
+	if !strings.Contains(out, `status=task_scheduled task=update run=compose user=-`) {
+		t.Fatalf("missing update task startup log: %q", out)
+	}
+	if !strings.Contains(out, `schedule="1h"`) || !strings.Contains(out, `schedule="0 2 * * 0"`) {
+		t.Fatalf("missing schedule details in startup logs: %q", out)
 	}
 }
 

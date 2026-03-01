@@ -1,0 +1,19 @@
+services:
+  dtask:
+    image: ${DTASK_IMAGE:-dtask:ci}
+    volumes:
+      - /:/host
+    environment:
+      host.schedule: "1s"
+      host.run: "host"
+      host.cwd: "/"
+      host.cmd: "echo host-ok > /tmp/dtask-host-ok"
+      host_as_user.schedule: "1s"
+      host_as_user.run: "host"
+      host_as_user.user: "1000:1000"
+      host_as_user.cwd: "/"
+      host_as_user.cmd: "echo host-user-ok > /tmp/dtask-host-user-ok"
+      compose.schedule: "1s"
+      compose.run: "compose"
+      compose.cwd: "."
+      compose.cmd: "test -f README.md && echo compose-ok > /tmp/dtask-compose-ok"

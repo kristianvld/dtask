@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -66,7 +67,7 @@ func (r *Runner) Run(ctx context.Context, task config.Task, prepared runtime.Pre
 		res.Duration = res.EndedAt.Sub(started)
 		return res
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 	res.LogPath = logFile.Name()
 
 	cmdCtx := ctx
@@ -150,15 +151,52 @@ func buildCommand(ctx context.Context, task config.Task, prepared runtime.Prepar
 		cmdArgv := append(shellArgv, task.Cmd)
 		cmd := exec.CommandContext(ctx, cmdArgv[0], cmdArgv[1:]...)
 		cmd.Dir = cwd
+		if u := strings.TrimSpace(task.User); u != "" {
+			cred, err := parseContainerUser(u)
+			if err != nil {
+				return nil, fmt.Errorf("task %q has invalid container user %q: %w", task.Name, u, err)
+			}
+			cmd.SysProcAttr = &syscall.SysProcAttr{Credential: cred}
+		}
 		return cmd, nil
 	case config.RunHost, config.RunCompose:
 		cmdText := fmt.Sprintf("cd %s && %s", shellQuote(cwd), task.Cmd)
-		chrootArgv := append([]string{"/host"}, shellArgv...)
+		chrootArgv := []string{}
+		if u := strings.TrimSpace(task.User); u != "" {
+			chrootArgv = append(chrootArgv, "--userspec="+u)
+		}
+		chrootArgv = append(chrootArgv, "/host")
+		chrootArgv = append(chrootArgv, shellArgv...)
 		chrootArgv = append(chrootArgv, cmdText)
 		return exec.CommandContext(ctx, "chroot", chrootArgv...), nil
 	default:
 		return nil, fmt.Errorf("unknown run mode %q", task.Run)
 	}
+}
+
+func parseContainerUser(v string) (*syscall.Credential, error) {
+	parts := strings.Split(v, ":")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("expected <uid> or <uid>:<gid>")
+	}
+
+	uid, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("expected numeric uid")
+	}
+
+	gid := uid
+	if len(parts) == 2 {
+		gid, err = strconv.ParseUint(parts[1], 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("expected numeric gid")
+		}
+	}
+
+	return &syscall.Credential{
+		Uid: uint32(uid),
+		Gid: uint32(gid),
+	}, nil
 }
 
 func shellQuote(v string) string {

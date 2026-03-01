@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,6 +73,8 @@ func hasNotifyURL(cfg config.Config) bool {
 }
 
 func (a *App) Start(ctx context.Context) error {
+	a.logStartup()
+
 	var wg sync.WaitGroup
 	for _, task := range a.cfg.Tasks {
 		task := task
@@ -85,6 +88,29 @@ func (a *App) Start(ctx context.Context) error {
 	<-ctx.Done()
 	wg.Wait()
 	return nil
+}
+
+func (a *App) logStartup() {
+	a.logger.Printf("status=startup_complete tasks=%d notifier_enabled=%s", len(a.cfg.Tasks), strconv.FormatBool(a.notifier != nil))
+	now := time.Now()
+	for _, task := range a.cfg.Tasks {
+		loc := runtime.ResolveLocation(task, a.prepared)
+		next := task.Schedule.Next(now.In(loc), loc)
+		user := strings.TrimSpace(task.User)
+		if user == "" {
+			user = "-"
+		}
+		a.logger.Printf(
+			"status=task_scheduled task=%s run=%s user=%s tz=%s cwd=%s schedule=%q next=%s",
+			task.Name,
+			task.Run,
+			user,
+			loc.String(),
+			task.CWD,
+			task.Schedule.Raw,
+			next.Format(time.RFC3339),
+		)
+	}
 }
 
 func (a *App) runTaskLoop(ctx context.Context, task config.Task) {

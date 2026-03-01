@@ -37,6 +37,7 @@ const (
 	AttachAlways NotifyAttachPolicy = "always"
 
 	defaultRun             = "container"
+	defaultUser            = ""
 	defaultCWD             = "."
 	defaultTZ              = "auto"
 	defaultShell           = "/bin/bash -lc"
@@ -52,6 +53,7 @@ const (
 
 type Options struct {
 	Run             RunMode
+	User            string
 	CWD             string
 	TZ              string
 	Location        *time.Location
@@ -92,6 +94,7 @@ var nonDtaskAllowlist = map[string]struct{}{
 
 var globalOptionKeys = map[string]struct{}{
 	"run":               {},
+	"user":              {},
 	"cwd":               {},
 	"tz":                {},
 	"shell":             {},
@@ -107,6 +110,7 @@ var globalOptionKeys = map[string]struct{}{
 
 var allOptionKeys = map[string]struct{}{
 	"run":               {},
+	"user":              {},
 	"cwd":               {},
 	"tz":                {},
 	"shell":             {},
@@ -249,6 +253,7 @@ func defaultOptions() (Options, error) {
 
 	return Options{
 		Run:             RunMode(defaultRun),
+		User:            defaultUser,
 		CWD:             defaultCWD,
 		TZ:              defaultTZ,
 		Shell:           defaultShell,
@@ -287,6 +292,14 @@ func applyOption(o *Options, key, value, scope string) error {
 		default:
 			return fmt.Errorf("%s has invalid run %q", scope, value)
 		}
+	case "user":
+		if value == "" {
+			return fmt.Errorf("%s has empty user", scope)
+		}
+		if strings.ContainsAny(value, " \t\r\n") {
+			return fmt.Errorf("%s has invalid user %q", scope, value)
+		}
+		o.User = value
 	case "cwd":
 		if value == "" {
 			return fmt.Errorf("%s has empty cwd", scope)

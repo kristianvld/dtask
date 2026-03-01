@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,5 +85,73 @@ func TestRunTimeout(t *testing.T) {
 	}
 	if !res.TimedOut {
 		t.Fatalf("expected timeout")
+	}
+}
+
+func TestBuildCommandHostUserspec(t *testing.T) {
+	t.Parallel()
+	task := config.Task{
+		Name: "task",
+		Options: config.Options{
+			Run:       config.RunHost,
+			User:      "1000:1000",
+			ShellArgv: []string{"/bin/sh", "-lc"},
+		},
+		Cmd: "echo hello",
+	}
+
+	cmd, err := buildCommand(context.Background(), task, runtime.Prepared{}, "/tmp")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	args := strings.Join(cmd.Args, " ")
+	if !strings.Contains(args, "--userspec=1000:1000") {
+		t.Fatalf("expected userspec arg, got: %q", args)
+	}
+}
+
+func TestBuildCommandContainerUserCredential(t *testing.T) {
+	t.Parallel()
+	task := config.Task{
+		Name: "task",
+		Options: config.Options{
+			Run:       config.RunContainer,
+			User:      "1001:1002",
+			ShellArgv: []string{"/bin/sh", "-lc"},
+		},
+		Cmd: "echo hello",
+	}
+
+	cmd, err := buildCommand(context.Background(), task, runtime.Prepared{}, "/tmp")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cmd.SysProcAttr == nil || cmd.SysProcAttr.Credential == nil {
+		t.Fatalf("expected credential to be set")
+	}
+	if cmd.SysProcAttr.Credential.Uid != 1001 || cmd.SysProcAttr.Credential.Gid != 1002 {
+		t.Fatalf("unexpected credential uid=%d gid=%d", cmd.SysProcAttr.Credential.Uid, cmd.SysProcAttr.Credential.Gid)
+	}
+}
+
+func TestBuildCommandContainerUserInvalid(t *testing.T) {
+	t.Parallel()
+	task := config.Task{
+		Name: "task",
+		Options: config.Options{
+			Run:       config.RunContainer,
+			User:      "backup",
+			ShellArgv: []string{"/bin/sh", "-lc"},
+		},
+		Cmd: "echo hello",
+	}
+
+	_, err := buildCommand(context.Background(), task, runtime.Prepared{}, "/tmp")
+	if err == nil {
+		t.Fatalf("expected invalid container user error")
+	}
+	if !strings.Contains(err.Error(), `invalid container user "backup"`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

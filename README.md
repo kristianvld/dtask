@@ -18,7 +18,10 @@ Lightweight Docker task runner for Docker Compose stacks.
 - `host`: run on host via chroot (`/host`)
 - `compose`: run on host via chroot with cwd at compose stack directory
 
-Each task uses `<task>.schedule` and `<task>.cmd` keys. Global defaults can be set with `<key>` and overridden per task with `<task>.<key>`.
+Each task uses `<task>.schedule` and `<task>.cmd` keys. Global defaults can be set with `<key>` and overridden per task with `<task>.<key>`. Tasks can also set `user`; in `host`/`compose` this maps to `chroot --userspec`, and in `container` it switches the process credential (numeric `uid[:gid]`).
+
+> [!WARNING]
+> `run=host` and `run=compose` rely on Linux host primitives (`chroot`, host mount layout, and Docker metadata paths). On Docker Desktop (macOS/Windows), these modes can behave unexpectedly due to the Linux VM abstraction. Prefer `run=container` there unless you have validated your setup end-to-end.
 
 ## Quick Start
 
@@ -44,12 +47,18 @@ services:
 - each task must define both `<task>.schedule` and `<task>.cmd`
 - invalid enums, durations, backoff values, timezones, or schedule strings fail startup
 - `run=host` / `run=compose` require root and `/:/host` mount
+- `user` in `run=container` must be numeric `uid` or `uid:gid`; invalid values fail startup
 - `run=compose` resolves stack directory from Docker label `com.docker.compose.project.working_dir`
 
 Scheduler semantics:
 
 - no overlap: if a task is still running, the next tick is skipped
 - no catch-up: restarts do not backfill missed runs
+
+Startup logging:
+
+- prints `startup_complete` with task count and notifier status
+- prints one `task_scheduled` line per task with run mode, user, timezone, cwd, schedule, and next run timestamp
 
 ## Notifications (Apprise)
 

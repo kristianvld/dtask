@@ -8,6 +8,9 @@
 
 Documentation site: <https://kristianvld.github.io/dtask/>
 
+> [!WARNING]
+> `run=host` and `run=compose` rely on Linux host primitives (`chroot`, host mount layout, and Docker metadata paths). On Docker Desktop (macOS/Windows), these modes can behave unexpectedly due to the Linux VM abstraction. Prefer `run=container` there unless you have validated your setup end-to-end.
+
 `dtask` arrose from a desire to solve the `co-location` problem of scheduling tasks on the host system outside of container context. For instance, running `docker compose up --build --pull -d` within the current compose stack every night or schedule other host-level tasks.
 
 One could alternativly solve this using `cron` or `systemd` timers, but that splits the location of defining the schedule for the task and the actual script to run, far away from each other. Alternativly, a bit of configuration of existing docker scheduling containers such as [mcuadros/ofelia](https://github.com/mcuadros/ofelia/) could solve this, but that would require mounting the current directory, make sure paths are correct when mounting or hardcoding the current directory path, which breaks if you copy the compose file to a different location or want to reuse a section.
@@ -234,6 +237,8 @@ This strict mode avoids silently ignored typos such as `retrry=3` or `notifyy_ur
 
 - no overlap: if a task is already running when its next schedule tick fires, that tick is skipped
 - no catch-up: after restart, dtask schedules from "now" and does not backfill missed runs
+- startup emits one `startup_complete` log line with task count and notification sender state
+- startup emits one `task_scheduled` log line per task with run mode, user, timezone, cwd, schedule, and next run timestamp
 
 ### Compose Variable Interpolation
 
@@ -292,6 +297,7 @@ All options follow one model.
 | Option                                    | Scope          | Required | Default             | Purpose                                                                          |
 | ----------------------------------------- | -------------- | -------- | ------------------- | -------------------------------------------------------------------------------- |
 | [`run`](#run)                             | global or task | no       | `container`         | execution context                                                                |
+| [`user`](#user)                           | global or task | no       | empty               | execution user (`chroot --userspec` for host/compose; numeric `uid[:gid]` for container) |
 | [`cwd`](#cwd)                             | global or task | no       | `.`                 | working directory                                                                |
 | [`tz`](#tz)                               | global or task | no       | `auto`              | timezone for scheduling and logging                                              |
 | [`shell`](#shell)                         | global or task | no       | `/bin/bash -lc`     | shell used to execute `task.cmd`                                                 |
@@ -330,11 +336,15 @@ Example snippets in this section only show the relevant keys. `...` means omitte
   - `container`: command runs inside the dtask container context.
   - `host`: command runs in host context via the `/host` mount using chroot semantics, with relative paths resolved from host root (`/`).
   - `compose`: command runs in host context via the `/host` mount, with relative paths resolved from the compose stack directory.
+  - when `user` is configured:
+    - `host`/`compose`: command runs as that host user via `chroot --userspec`.
+    - `container`: command runs with that Linux credential (`uid[:gid]`).
   - stdout/stderr are streamed to the dtask container logs in all modes.
 - Validation:
   - `run=host` and `run=compose` require `/:/host` mount.
   - `run=host` and `run=compose` require running as root in the container (chroot).
   - `run=compose` auto-detects the compose stack directory from Docker container metadata label `com.docker.compose.project.working_dir`; unresolved compose directories fail startup.
+  - on Docker Desktop (macOS/Windows), `host`/`compose` can behave unexpectedly because they depend on Linux host semantics; validate carefully or prefer `run=container`.
   - invalid enum values fail configuration.
 
 Example:
@@ -346,8 +356,46 @@ The following example configures all tasks to run in `compose` mode, so host bin
 environment:
   # ...
   run: compose
+  user: 1000:1000
   # ...
   lint.run: container
+```
+
+### `user`
+
+- Default: empty (default process user for the selected run mode)
+- Type:
+  - `run=host` / `run=compose`: Linux `chroot --userspec` value (for example `1000`, `1000:1000`, `backup`, `backup:backup`)
+  - `run=container`: numeric `uid` or `uid:gid` (for example `1000`, `1000:1000`)
+- Behavior:
+  - `run=host` / `run=compose`: dtask passes this value through as `chroot --userspec=<value>`.
+  - `run=container`: dtask executes the command with the provided numeric Linux credential.
+- Validation:
+  - empty values fail configuration.
+  - whitespace in the value fails configuration.
+  - for `run=container`, non-numeric users fail startup (must be `uid` or `uid:gid`).
+
+Example:
+
+The following example runs host tasks with named users and a container task as numeric UID/GID.
+
+```yaml
+# ...
+environment:
+  run: host
+
+  backup.user: 1000:1000
+  backup.schedule: 6h
+  backup.cmd: tar czf /var/backups/app-$(date +%F-%H%M%S).tar.gz /srv/app
+
+  weekly.user: backup
+  weekly.schedule: 0 2 * * 0
+  weekly.cmd: /usr/local/bin/weekly-maintenance
+
+  lint.run: container
+  lint.user: 1000:1000
+  lint.schedule: 1h
+  lint.cmd: go test ./...
 ```
 
 ### `cwd`

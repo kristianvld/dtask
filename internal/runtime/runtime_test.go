@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,12 +96,20 @@ func TestPrepareHostValidation(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if _, err := Prepare(&cfg, fakeEnv{uid: 1000, dirs: map[string]bool{"/host": true}, files: map[string][]byte{}}); err == nil {
+	_, err = Prepare(&cfg, fakeEnv{uid: 1000, dirs: map[string]bool{"/host": true}, files: map[string][]byte{}})
+	if err == nil {
 		t.Fatalf("expected root error")
 	}
+	if !strings.Contains(err.Error(), "require root for chroot") {
+		t.Fatalf("unexpected root error: %v", err)
+	}
 
-	if _, err := Prepare(&cfg, fakeEnv{uid: 0, dirs: map[string]bool{}, files: map[string][]byte{}}); err == nil {
+	_, err = Prepare(&cfg, fakeEnv{uid: 0, dirs: map[string]bool{}, files: map[string][]byte{}})
+	if err == nil {
 		t.Fatalf("expected host mount error")
+	}
+	if !strings.Contains(err.Error(), "require /host mount") {
+		t.Fatalf("unexpected host mount error: %v", err)
 	}
 }
 
@@ -129,5 +138,81 @@ func TestPrepareComposeValidation(t *testing.T) {
 	}
 	if prepared.ComposeDir != "/srv/stack" {
 		t.Fatalf("compose dir=%s", prepared.ComposeDir)
+	}
+}
+
+func TestPrepareHostShellMissing(t *testing.T) {
+	t.Parallel()
+	envCfg := []string{
+		"task.schedule=1h",
+		"task.cmd=true",
+		"task.run=host",
+		"task.shell=/bin/does-not-exist -lc",
+	}
+	cfg, err := config.ParseEnvironment(envCfg)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	_, err = Prepare(&cfg, fakeEnv{
+		uid:   0,
+		dirs:  map[string]bool{"/host": true},
+		files: map[string][]byte{},
+	})
+	if err == nil {
+		t.Fatalf("expected shell missing error")
+	}
+	if !strings.Contains(err.Error(), `shell "/bin/does-not-exist" not found on host`) {
+		t.Fatalf("unexpected shell missing error: %v", err)
+	}
+}
+
+func TestPrepareComposeMissingWorkingDirLabel(t *testing.T) {
+	t.Parallel()
+	id := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	metaPath := filepath.Join("/host/var/lib/docker/containers", id, "config.v2.json")
+	envCfg := []string{"task.schedule=1h", "task.cmd=true", "task.run=compose"}
+	cfg, err := config.ParseEnvironment(envCfg)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	env := fakeEnv{
+		uid:  0,
+		dirs: map[string]bool{"/host": true},
+		files: map[string][]byte{
+			"/host/bin/bash":    []byte(""),
+			"/proc/self/cgroup": []byte("0::/docker/" + id),
+			metaPath:            []byte(`{"Config":{"Labels":{}}}`),
+		},
+	}
+	_, err = Prepare(&cfg, env)
+	if err == nil {
+		t.Fatalf("expected missing label error")
+	}
+	if !strings.Contains(err.Error(), "missing docker label com.docker.compose.project.working_dir") {
+		t.Fatalf("unexpected missing label error: %v", err)
+	}
+}
+
+func TestPrepareAllowsUserInContainerMode(t *testing.T) {
+	t.Parallel()
+	envCfg := []string{
+		"task.schedule=1h",
+		"task.cmd=true",
+		"task.run=container",
+		"task.user=1000:1000",
+	}
+	cfg, err := config.ParseEnvironment(envCfg)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	prepared, err := Prepare(&cfg, fakeEnv{uid: 0, dirs: map[string]bool{}, files: map[string][]byte{}})
+	if err != nil {
+		t.Fatalf("expected container user to be allowed, got: %v", err)
+	}
+	if prepared.ComposeDir != "" {
+		t.Fatalf("unexpected compose dir: %q", prepared.ComposeDir)
 	}
 }
