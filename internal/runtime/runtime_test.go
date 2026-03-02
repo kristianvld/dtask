@@ -15,6 +15,7 @@ type fakeEnv struct {
 	files      map[string][]byte
 	dirs       map[string]bool
 	dirEntries map[string][]string
+	links      map[string]string
 	hostname   string
 }
 
@@ -46,6 +47,14 @@ func (f fakeEnv) ReadDir(path string) ([]string, error) {
 	out := make([]string, len(v))
 	copy(out, v)
 	return out, nil
+}
+
+func (f fakeEnv) Readlink(path string) (string, error) {
+	v, ok := f.links[path]
+	if !ok {
+		return "", os.ErrNotExist
+	}
+	return v, nil
 }
 
 func (f fakeEnv) Hostname() (string, error) {
@@ -292,5 +301,80 @@ func TestPrepareAllowsUserInContainerMode(t *testing.T) {
 	}
 	if prepared.ComposeDir != "" {
 		t.Fatalf("unexpected compose dir: %q", prepared.ComposeDir)
+	}
+}
+
+func TestPrepareAutoTZPrefersLocaltimeSymlink(t *testing.T) {
+	t.Parallel()
+	envCfg := []string{"task.schedule=1h", "task.cmd=true", "task.run=host"}
+	cfg, err := config.ParseEnvironment(envCfg)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	prepared, err := Prepare(&cfg, fakeEnv{
+		uid:  0,
+		dirs: map[string]bool{"/host": true},
+		files: map[string][]byte{
+			"/host/bin/bash":     []byte(""),
+			"/host/etc/timezone": []byte("Etc/UTC"),
+		},
+		links: map[string]string{
+			"/host/etc/localtime": "../usr/share/zoneinfo/Europe/Oslo",
+		},
+	})
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if prepared.AutoTZ == nil || prepared.AutoTZ.String() != "Europe/Oslo" {
+		t.Fatalf("expected Europe/Oslo, got %v", prepared.AutoTZ)
+	}
+}
+
+func TestPrepareAutoTZFallsBackToTimezoneFile(t *testing.T) {
+	t.Parallel()
+	envCfg := []string{"task.schedule=1h", "task.cmd=true", "task.run=host"}
+	cfg, err := config.ParseEnvironment(envCfg)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	prepared, err := Prepare(&cfg, fakeEnv{
+		uid:  0,
+		dirs: map[string]bool{"/host": true},
+		files: map[string][]byte{
+			"/host/bin/bash":     []byte(""),
+			"/host/etc/timezone": []byte("Europe/Paris\n"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if prepared.AutoTZ == nil || prepared.AutoTZ.String() != "Europe/Paris" {
+		t.Fatalf("expected Europe/Paris, got %v", prepared.AutoTZ)
+	}
+}
+
+func TestPrepareAutoTZFallsBackToSysconfigClock(t *testing.T) {
+	t.Parallel()
+	envCfg := []string{"task.schedule=1h", "task.cmd=true", "task.run=host"}
+	cfg, err := config.ParseEnvironment(envCfg)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	prepared, err := Prepare(&cfg, fakeEnv{
+		uid:  0,
+		dirs: map[string]bool{"/host": true},
+		files: map[string][]byte{
+			"/host/bin/bash":            []byte(""),
+			"/host/etc/sysconfig/clock": []byte("ZONE=\"America/New_York\"\n"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if prepared.AutoTZ == nil || prepared.AutoTZ.String() != "America/New_York" {
+		t.Fatalf("expected America/New_York, got %v", prepared.AutoTZ)
 	}
 }

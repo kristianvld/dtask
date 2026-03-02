@@ -22,6 +22,7 @@ type Env interface {
 	Stat(path string) (os.FileInfo, error)
 	ReadFile(path string) ([]byte, error)
 	ReadDir(path string) ([]string, error)
+	Readlink(path string) (string, error)
 	Hostname() (string, error)
 }
 
@@ -49,6 +50,10 @@ func (RealEnv) ReadDir(path string) ([]string, error) {
 		out = append(out, e.Name())
 	}
 	return out, nil
+}
+
+func (RealEnv) Readlink(path string) (string, error) {
+	return os.Readlink(path)
 }
 
 func (RealEnv) Hostname() (string, error) {
@@ -95,10 +100,8 @@ func Prepare(cfg *config.Config, env Env) (Prepared, error) {
 
 	autoTZ := time.Local
 	if needHost {
-		if tzData, err := env.ReadFile("/host/etc/timezone"); err == nil {
-			if loc, loadErr := time.LoadLocation(strings.TrimSpace(string(tzData))); loadErr == nil {
-				autoTZ = loc
-			}
+		if loc := detectHostAutoTZ(env); loc != nil {
+			autoTZ = loc
 		}
 	}
 
@@ -122,6 +125,134 @@ func ResolveLocation(task config.Task, prepared Prepared) *time.Location {
 		return prepared.AutoTZ
 	}
 	return time.Local
+}
+
+func detectHostAutoTZ(env Env) *time.Location {
+	if loc, err := detectTZFromLocaltimeLink(env); err == nil {
+		return loc
+	}
+	if loc, err := detectTZFromTimezoneFile(env); err == nil {
+		return loc
+	}
+	if loc, err := detectTZFromSysconfigClock(env); err == nil {
+		return loc
+	}
+	if loc, err := detectTZFromConfDClock(env); err == nil {
+		return loc
+	}
+	return nil
+}
+
+func detectTZFromLocaltimeLink(env Env) (*time.Location, error) {
+	link, err := env.Readlink("/host/etc/localtime")
+	if err != nil {
+		return nil, err
+	}
+	name := tzNameFromLocaltimeLink("/host/etc/localtime", link)
+	if name == "" {
+		return nil, fmt.Errorf("localtime symlink does not point to zoneinfo")
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, err
+	}
+	return loc, nil
+}
+
+func tzNameFromLocaltimeLink(localtimePath, link string) string {
+	link = strings.TrimSpace(link)
+	if link == "" {
+		return ""
+	}
+
+	target := link
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(localtimePath), target)
+	}
+	target = filepath.Clean(target)
+
+	const marker = "/usr/share/zoneinfo/"
+	idx := strings.Index(target, marker)
+	if idx < 0 {
+		return ""
+	}
+	name := strings.TrimSpace(target[idx+len(marker):])
+	if name == "" || strings.Contains(name, "..") || strings.HasPrefix(name, "/") {
+		return ""
+	}
+	return name
+}
+
+func detectTZFromTimezoneFile(env Env) (*time.Location, error) {
+	data, err := env.ReadFile("/host/etc/timezone")
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if i := strings.Index(line, "#"); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		if line == "" {
+			continue
+		}
+		loc, err := time.LoadLocation(line)
+		if err == nil {
+			return loc, nil
+		}
+	}
+	return nil, fmt.Errorf("no valid timezone in /host/etc/timezone")
+}
+
+func detectTZFromSysconfigClock(env Env) (*time.Location, error) {
+	return detectTZFromKeyValueFile(env, "/host/etc/sysconfig/clock", "ZONE", "TIMEZONE")
+}
+
+func detectTZFromConfDClock(env Env) (*time.Location, error) {
+	return detectTZFromKeyValueFile(env, "/host/etc/conf.d/clock", "TIMEZONE", "ZONE")
+}
+
+func detectTZFromKeyValueFile(env Env, path string, keys ...string) (*time.Location, error) {
+	data, err := env.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	keyset := map[string]struct{}{}
+	for _, k := range keys {
+		keyset[k] = struct{}{}
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if i := strings.Index(line, "#"); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if _, wanted := keyset[key]; !wanted {
+			continue
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if value == "" {
+			continue
+		}
+		loc, err := time.LoadLocation(value)
+		if err == nil {
+			return loc, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no valid timezone key in %s", path)
 }
 
 var containerIDRE = regexp.MustCompile(`[a-f0-9]{64}`)
