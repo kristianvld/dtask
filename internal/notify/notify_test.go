@@ -1,6 +1,9 @@
 package notify
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidateURL(t *testing.T) {
 	oldInspect := inspectURL
@@ -54,5 +57,15 @@ func TestSupportsAttachment(t *testing.T) {
 	}
 	if ok {
 		t.Fatalf("unexpected support")
+	}
+}
+
+func TestAppriseSendScriptSupportsImageURLMask(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(appriseSendScript, `take("image_url_mask", image_url_logo)`) {
+		t.Fatalf("apprise send script must default image_url_mask from image_url_logo")
+	}
+	if !strings.Contains(appriseSendScript, `image_url_mask=image_url_mask`) {
+		t.Fatalf("apprise send script must set image_url_mask on AppriseAsset")
 	}
 }

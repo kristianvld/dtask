@@ -71,11 +71,15 @@ def take(name, default_value):
     value = (values[-1] or "").strip()
     return value if value else default_value
 
+image_url_logo = take("image_url_logo", "https://raw.githubusercontent.com/kristianvld/dtask/main/docs/public/logo.png")
+image_url_mask = take("image_url_mask", image_url_logo)
+
 asset = apprise.AppriseAsset(
     app_id=take("app_id", "dtask"),
     app_desc=take("app_desc", "dtask scheduled task runner"),
     app_url=take("app_url", "https://github.com/kristianvld/dtask"),
-    image_url_logo=take("image_url_logo", "https://raw.githubusercontent.com/kristianvld/dtask/main/docs/public/logo.svg"),
+    image_url_logo=image_url_logo,
+    image_url_mask=image_url_mask,
 )
 
 clean_url = urlunsplit((

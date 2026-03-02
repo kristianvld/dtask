@@ -60,14 +60,13 @@ Startup logging:
 - prints `startup_complete` with task count and notifier status
 - prints one `task_scheduled` line per task with run mode, user, timezone, cwd, schedule, and next run timestamp
 
-## Notifications (Apprise)
+## Notifications
 
 Notifications are configured with `notify`, `notify_url`, `notify_attach_log`, `notify_retry`, and `notify_backoff`.
 
 - `notify_url` must be a valid Apprise URL
-- dtask validates and sends notifications through Apprise Python
-- by default notifications use `dtask` branding (`app_id`, description, and logo)
-- override branding per URL with query params: `app_id`, `app_desc`, `app_url`, `image_url_logo`
+- by default dtask branding uses a PNG logo URL so providers like Discord webhook avatars render correctly
+- override branding per URL with query params: `app_id`, `app_desc`, `app_url`, `image_url_logo`, `image_url_mask`
 - if `notify_attach_log` is `fail` or `always`, provider attachment support is validated at startup
 
 ## Local Development
