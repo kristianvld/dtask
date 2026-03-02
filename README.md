@@ -10,6 +10,14 @@ Lightweight Docker task runner for Docker Compose stacks.
 - Repo: <https://github.com/kristianvld/dtask>
 - Image: `ghcr.io/kristianvld/dtask`
 
+[![CI](https://github.com/kristianvld/dtask/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/ci.yml)
+[![Docs](https://github.com/kristianvld/dtask/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/docs.yml)
+[![Release](https://github.com/kristianvld/dtask/actions/workflows/release.yml/badge.svg)](https://github.com/kristianvld/dtask/actions/workflows/release.yml)
+[![Version](https://img.shields.io/github/v/tag/kristianvld/dtask?sort=semver&label=version)](https://github.com/kristianvld/dtask/tags)
+[![Image Size](https://img.shields.io/docker/image-size/ghcr.io/kristianvld/dtask/latest?label=image%20size)](https://github.com/kristianvld/dtask/pkgs/container/dtask)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/kristianvld/dtask)](https://github.com/kristianvld/dtask/blob/main/go.mod)
+[![License](https://img.shields.io/github/license/kristianvld/dtask)](https://github.com/kristianvld/dtask/blob/main/LICENSE)
+
 ## What It Does
 
 `dtask` reads task configuration from container environment variables and schedules commands in one of three modes:
