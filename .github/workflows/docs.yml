@@ -82,16 +82,20 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             mkdir -p ".deploy/${GITHUB_REF_NAME}"
             cp -a docs/.vitepress/dist/. ".deploy/${GITHUB_REF_NAME}/"
-
-            root_base="/${GITHUB_REPOSITORY#*/}/"
-            VITEPRESS_BASE="${root_base}" \
-            DOCS_CURRENT_VERSION="${{ steps.meta.outputs.current }}" \
-            DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
-            DOCS_VERSION_LIST="${{ steps.meta.outputs.versions }}" \
-            bun --cwd docs run build
           fi
 
-          cp -a docs/.vitepress/dist/. .deploy/
+          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" == "${{ steps.meta.outputs.latest }}" ]]; then
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              root_base="/${GITHUB_REPOSITORY#*/}/"
+              VITEPRESS_BASE="${root_base}" \
+              DOCS_CURRENT_VERSION="${{ steps.meta.outputs.latest }}" \
+              DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
+              DOCS_VERSION_LIST="${{ steps.meta.outputs.versions }}" \
+              bun --cwd docs run build
+            fi
+
+            cp -a docs/.vitepress/dist/. .deploy/
+          fi
 
       - name: Deploy docs to gh-pages
         uses: peaceiris/actions-gh-pages@v4
