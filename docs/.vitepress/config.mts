@@ -3,6 +3,21 @@ import { defineConfig } from 'vitepress'
 const repo = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? ''
 const isUserSite = repo.endsWith('.github.io')
 const base = process.env.VITEPRESS_BASE ?? (process.env.GITHUB_ACTIONS === 'true' && !isUserSite ? `/${repo}/` : '/')
+const docsCurrentVersion = process.env.DOCS_CURRENT_VERSION ?? 'local'
+const docsLatestVersion = process.env.DOCS_LATEST_VERSION ?? docsCurrentVersion
+const docsVersionList = (process.env.DOCS_VERSION_LIST ?? '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean)
+const rootBase = process.env.GITHUB_ACTIONS === 'true' && !isUserSite ? `/${repo}/` : '/'
+const atLatest = docsCurrentVersion === docsLatestVersion
+const currentLabel = atLatest ? `${docsCurrentVersion} (latest)` : docsCurrentVersion
+const versionNavItems = docsVersionList.map((v) => ({
+  text: v === docsLatestVersion ? `${v} (latest)` : v,
+  link: v === docsLatestVersion ? rootBase : `${rootBase}${v}/`
+}))
+const resolvedVersionItems =
+  versionNavItems.length > 0 ? versionNavItems : [{ text: currentLabel, link: rootBase }]
 
 export default defineConfig({
   title: 'dtask',
@@ -11,7 +26,13 @@ export default defineConfig({
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }]],
   themeConfig: {
     logo: '/favicon.svg',
-    nav: [{ text: 'Documentation', link: '/' }],
+    nav: [
+      { text: 'Documentation', link: '/' },
+      {
+        text: `Version: ${currentLabel}`,
+        items: resolvedVersionItems
+      }
+    ],
     sidebar: [
       {
         text: 'Sections',
