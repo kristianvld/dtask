@@ -14,7 +14,9 @@ Lightweight Docker task runner for Docker Compose stacks.
 [![Docs](https://github.com/kristianvld/dtask/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/docs.yml)
 [![Release](https://github.com/kristianvld/dtask/actions/workflows/release.yml/badge.svg)](https://github.com/kristianvld/dtask/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/tag/kristianvld/dtask?sort=semver&label=version)](https://github.com/kristianvld/dtask/tags)
-[![Image Size](https://img.shields.io/docker/image-size/ghcr.io/kristianvld/dtask/latest?label=image%20size)](https://github.com/kristianvld/dtask/pkgs/container/dtask)
+[![Image Size amd64](https://img.shields.io/endpoint?url=https://kristianvld.github.io/dtask/badges/image-size-amd64.json)](https://github.com/kristianvld/dtask/pkgs/container/dtask)
+[![Image Size arm64](https://img.shields.io/endpoint?url=https://kristianvld.github.io/dtask/badges/image-size-arm64.json)](https://github.com/kristianvld/dtask/pkgs/container/dtask)
+[![Platforms](https://img.shields.io/badge/platform-linux%2Famd64%20%7C%20linux%2Farm64-blue)](https://github.com/kristianvld/dtask/pkgs/container/dtask)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kristianvld/dtask)](https://github.com/kristianvld/dtask/blob/main/go.mod)
 [![License](https://img.shields.io/github/license/kristianvld/dtask)](https://github.com/kristianvld/dtask/blob/main/LICENSE)
 

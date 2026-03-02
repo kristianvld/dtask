@@ -2,6 +2,11 @@ name: docs
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (tag or branch) to build docs from, e.g. v0.1.0'
+        required: false
+        type: string
   push:
     branches: [main]
     tags: ['v*']
@@ -21,6 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.ref != '' && github.event.inputs.ref || github.ref }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -52,18 +58,32 @@ jobs:
           PY
           )"
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          input_ref="${{ github.event.inputs.ref }}"
+          if [[ -n "${input_ref}" ]]; then
+            if [[ "${input_ref}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              current="${input_ref}"
+              base="/${GITHUB_REPOSITORY#*/}/${current}/"
+              kind="tag"
+            else
+              current="${latest_tag}"
+              base="/${GITHUB_REPOSITORY#*/}/"
+              kind="branch"
+            fi
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             current="${GITHUB_REF_NAME}"
             base="/${GITHUB_REPOSITORY#*/}/${current}/"
+            kind="tag"
           else
             current="${latest_tag}"
             base="/${GITHUB_REPOSITORY#*/}/"
+            kind="branch"
           fi
 
           echo "latest=${latest_tag}" >> "$GITHUB_OUTPUT"
           echo "current=${current}" >> "$GITHUB_OUTPUT"
           echo "versions=${version_csv}" >> "$GITHUB_OUTPUT"
           echo "base=${base}" >> "$GITHUB_OUTPUT"
+          echo "kind=${kind}" >> "$GITHUB_OUTPUT"
 
       - name: Build docs
         working-directory: docs
@@ -79,22 +99,78 @@ jobs:
           set -euo pipefail
           mkdir -p .deploy
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            mkdir -p ".deploy/${GITHUB_REF_NAME}"
-            cp -a docs/.vitepress/dist/. ".deploy/${GITHUB_REF_NAME}/"
+          if [[ "${{ steps.meta.outputs.kind }}" == "tag" ]]; then
+            mkdir -p ".deploy/${{ steps.meta.outputs.current }}"
+            cp -a docs/.vitepress/dist/. ".deploy/${{ steps.meta.outputs.current }}/"
           fi
 
-          if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" == "${{ steps.meta.outputs.latest }}" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${{ steps.meta.outputs.kind }}" != "tag" || "${{ steps.meta.outputs.current }}" == "${{ steps.meta.outputs.latest }}" ]]; then
+            if [[ "${{ steps.meta.outputs.kind }}" == "tag" ]]; then
               root_base="/${GITHUB_REPOSITORY#*/}/"
               VITEPRESS_BASE="${root_base}" \
               DOCS_CURRENT_VERSION="${{ steps.meta.outputs.latest }}" \
               DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
               DOCS_VERSION_LIST="${{ steps.meta.outputs.versions }}" \
-              bun --cwd docs run build
+              sh -c 'cd docs && bun run build'
             fi
 
             cp -a docs/.vitepress/dist/. .deploy/
+
+            # Generate dynamic badge endpoints for GHCR image sizes (latest tag).
+            mkdir -p .deploy/badges
+            IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY_OWNER}/dtask" python3 - <<'PY'
+            import json
+            import os
+            import pathlib
+            import subprocess
+
+            image_repo = os.environ["IMAGE_REPO"]
+            image_latest = f"{image_repo}:latest"
+            out_dir = pathlib.Path(".deploy/badges")
+
+            def run_json(cmd):
+              return json.loads(subprocess.check_output(cmd, text=True))
+
+            def human_size(n):
+              units = ["B", "KB", "MB", "GB", "TB"]
+              v = float(n)
+              for u in units:
+                if v < 1024.0 or u == units[-1]:
+                  return f"{v:.1f} {u}" if u != "B" else f"{int(v)} {u}"
+                v /= 1024.0
+              return f"{n} B"
+
+            def write_badge(path, label, message, color):
+              payload = {
+                "schemaVersion": 1,
+                "label": label,
+                "message": message,
+                "color": color,
+              }
+              path.write_text(json.dumps(payload), encoding="utf-8")
+
+            try:
+              index = run_json(["docker", "manifest", "inspect", image_latest])
+              manifests = index.get("manifests", [])
+              digests = {}
+              for m in manifests:
+                p = m.get("platform") or {}
+                if p.get("os") == "linux" and p.get("architecture") in {"amd64", "arm64"}:
+                  digests[p["architecture"]] = m.get("digest")
+
+              for arch in ("amd64", "arm64"):
+                digest = digests.get(arch)
+                if not digest:
+                  write_badge(out_dir / f"image-size-{arch}.json", f"image size {arch}", "unknown", "lightgrey")
+                  continue
+
+                manifest = run_json(["docker", "manifest", "inspect", f"{image_repo}@{digest}"])
+                total = sum(int(layer.get("size", 0)) for layer in manifest.get("layers", []))
+                write_badge(out_dir / f"image-size-{arch}.json", f"image size {arch}", human_size(total), "blue")
+            except Exception:
+              for arch in ("amd64", "arm64"):
+                write_badge(out_dir / f"image-size-{arch}.json", f"image size {arch}", "unknown", "lightgrey")
+            PY
           fi
 
       - name: Deploy docs to gh-pages
