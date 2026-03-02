@@ -99,6 +99,11 @@ jobs:
           set -euo pipefail
           mkdir -p .deploy
 
+          # Preserve previously published version folders and assets.
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git archive origin/gh-pages | tar -x -C .deploy
+          fi
+
           if [[ "${{ steps.meta.outputs.kind }}" == "tag" ]]; then
             mkdir -p ".deploy/${{ steps.meta.outputs.current }}"
             cp -a docs/.vitepress/dist/. ".deploy/${{ steps.meta.outputs.current }}/"
