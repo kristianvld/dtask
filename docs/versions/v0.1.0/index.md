@@ -9,7 +9,7 @@
 > [!WARNING]
 > `run=host` and `run=compose` rely on Linux host primitives (`chroot`, host mount layout, and Docker metadata paths). On Docker Desktop (macOS/Windows), these modes can behave unexpectedly due to the Linux VM abstraction. Prefer `run=container` there unless you have validated your setup end-to-end.
 
-`dtask` arrose from a desire to solve the `co-location` problem of scheduling tasks on the host system outside of container context. For instance, running `docker compose up --build --pull -d` within the current compose stack every night or schedule other host-level tasks.
+`dtask` arrose from a desire to solve the `co-location` problem of scheduling tasks on the host system outside of container context. For instance, running `docker compose up --build --pull always -d` within the current compose stack every night or schedule other host-level tasks.
 
 One could alternativly solve this using `cron` or `systemd` timers, but that splits the location of defining the schedule for the task and the actual script to run, far away from each other. Alternativly, a bit of configuration of existing docker scheduling containers such as [mcuadros/ofelia](https://github.com/mcuadros/ofelia/) could solve this, but that would require mounting the current directory, make sure paths are correct when mounting or hardcoding the current directory path, which breaks if you copy the compose file to a different location or want to reuse a section.
 
@@ -26,7 +26,7 @@ services:
     environment:
       run: compose # run on host in the compose stack directory (requires `/:/host` mount)
       update.schedule: 02:00-04:00 # run every night at a random time between 02AM and 04AM
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
 ```
 
 Want to schedule a quick ad-hoc `bun` script to run every hour, without writing your own custom container or start configuring `cron` in a far away location?
@@ -148,7 +148,7 @@ services:
       # The command to run when a task is scheduled
       # The command will be parsed by the `shell`. Shell parsing depends on the `shell` specified. Path is relative to `cwd`.
       # `cmd` is required for all tasks and cannot be defined globally
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
       # Example override, overrides `retry` for this task only.
       update.retry: 0
 
@@ -277,7 +277,7 @@ services:
       tz: ${DTASK_TZ:-auto}
 
       update.schedule: ${DAILY_WINDOW}
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
 
       cleanup.schedule: ${DAILY_WINDOW}
       cleanup.cmd: docker image prune -af
@@ -833,7 +833,7 @@ services:
     environment:
       run: compose
       stack_update.schedule: 02:00-04:00
-      stack_update.cmd: docker compose up -d --build --pull
+      stack_update.cmd: docker compose up -d --build --pull always
 ```
 
 ### Container Backup Every Hour

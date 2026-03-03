@@ -41,7 +41,7 @@ services:
     environment:
       run: compose
       update.schedule: 02:00-04:00
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
 ```
 
 ## Validation and Runtime Rules

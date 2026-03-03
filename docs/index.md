@@ -18,7 +18,7 @@ Documentation site: <https://kristianvld.github.io/dtask/>
 > [!WARNING]
 > `run=host` and `run=compose` rely on Linux host primitives (`chroot`, host mount layout, and Docker metadata paths). On Docker Desktop (macOS/Windows), these modes can behave unexpectedly due to the Linux VM abstraction. Prefer `run=container` there unless you have validated your setup end-to-end.
 
-`dtask` arrose from a desire to solve the `co-location` problem of scheduling tasks on the host system outside of container context. For instance, running `docker compose up --build --pull -d` within the current compose stack every night or schedule other host-level tasks.
+`dtask` arrose from a desire to solve the `co-location` problem of scheduling tasks on the host system outside of container context. For instance, running `docker compose up --build --pull always -d` within the current compose stack every night or schedule other host-level tasks.
 
 One could alternativly solve this using `cron` or `systemd` timers, but that splits the location of defining the schedule for the task and the actual script to run, far away from each other. Alternativly, a bit of configuration of existing docker scheduling containers such as [mcuadros/ofelia](https://github.com/mcuadros/ofelia/) could solve this, but that would require mounting the current directory, make sure paths are correct when mounting or hardcoding the current directory path, which breaks if you copy the compose file to a different location or want to reuse a section.
 
@@ -35,7 +35,7 @@ services:
     environment:
       run: compose # run on host in the compose stack directory (requires `/:/host` mount)
       update.schedule: 02:00-04:00 # run every night at a random time between 02AM and 04AM
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
 ```
 
 Want to schedule a quick ad-hoc `bun` script to run every hour, without writing your own custom container or start configuring `cron` in a far away location?
@@ -157,7 +157,7 @@ services:
       # The command to run when a task is scheduled
       # The command will be parsed by the `shell`. Shell parsing depends on the `shell` specified. Path is relative to `cwd`.
       # `cmd` is required for all tasks and cannot be defined globally
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
       # Example override, overrides `retry` for this task only.
       update.retry: 0
 
@@ -286,7 +286,7 @@ services:
       tz: ${DTASK_TZ:-auto}
 
       update.schedule: ${DAILY_WINDOW}
-      update.cmd: docker compose up -d --build --pull
+      update.cmd: docker compose up -d --build --pull always
 
       cleanup.schedule: ${DAILY_WINDOW}
       cleanup.cmd: docker image prune -af
@@ -301,23 +301,23 @@ Use this section to jump directly to any option.
 
 All options follow one model.
 
-| Option                                    | Scope          | Required | Default             | Purpose                                                                          |
-| ----------------------------------------- | -------------- | -------- | ------------------- | -------------------------------------------------------------------------------- |
-| [`run`](#run)                             | global or task | no       | `container`         | execution context                                                                |
+| Option                                    | Scope          | Required | Default             | Purpose                                                                                  |
+| ----------------------------------------- | -------------- | -------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| [`run`](#run)                             | global or task | no       | `container`         | execution context                                                                        |
 | [`user`](#user)                           | global or task | no       | empty               | execution user (`chroot --userspec` for host/compose; numeric `uid[:gid]` for container) |
-| [`cwd`](#cwd)                             | global or task | no       | `.`                 | working directory                                                                |
-| [`tz`](#tz)                               | global or task | no       | `auto`              | timezone for scheduling and logging                                              |
-| [`shell`](#shell)                         | global or task | no       | `/bin/bash -lc`     | shell used to execute `task.cmd`                                                 |
-| [`timeout`](#timeout)                     | global or task | no       | `0`                 | max runtime per attempt                                                          |
-| [`retry`](#retry)                         | global or task | no       | `0`                 | task retry attempts                                                              |
-| [`backoff`](#backoff)                     | global or task | no       | `exp:10s:5m:2:0.1`  | retry delay strategy                                                             |
-| [`notify`](#notify)                       | global or task | no       | `fail`              | notification policy                                                              |
-| [`notify_url`](#notify_url)               | global or task | no       | empty               | [Apprise](https://github.com/caronc/apprise/wiki) target URL                     |
-| [`notify_attach_log`](#notify_attach_log) | global or task | no       | `fail`              | log attachment policy                                                            |
-| [`notify_backoff`](#notify_backoff)       | global or task | no       | `exp:10s:10m:2:0.1` | notification delivery backoff                                                    |
-| [`notify_retry`](#notify_retry)           | global or task | no       | `-1`                | notification delivery retries                                                    |
-| [`task.schedule`](#taskschedule)          | task only      | yes      | none                | trigger schedule                                                                 |
-| [`task.cmd`](#taskcmd)                    | task only      | yes      | none                | command to execute                                                               |
+| [`cwd`](#cwd)                             | global or task | no       | `.`                 | working directory                                                                        |
+| [`tz`](#tz)                               | global or task | no       | `auto`              | timezone for scheduling and logging                                                      |
+| [`shell`](#shell)                         | global or task | no       | `/bin/bash -lc`     | shell used to execute `task.cmd`                                                         |
+| [`timeout`](#timeout)                     | global or task | no       | `0`                 | max runtime per attempt                                                                  |
+| [`retry`](#retry)                         | global or task | no       | `0`                 | task retry attempts                                                                      |
+| [`backoff`](#backoff)                     | global or task | no       | `exp:10s:5m:2:0.1`  | retry delay strategy                                                                     |
+| [`notify`](#notify)                       | global or task | no       | `fail`              | notification policy                                                                      |
+| [`notify_url`](#notify_url)               | global or task | no       | empty               | [Apprise](https://github.com/caronc/apprise/wiki) target URL                             |
+| [`notify_attach_log`](#notify_attach_log) | global or task | no       | `fail`              | log attachment policy                                                                    |
+| [`notify_backoff`](#notify_backoff)       | global or task | no       | `exp:10s:10m:2:0.1` | notification delivery backoff                                                            |
+| [`notify_retry`](#notify_retry)           | global or task | no       | `-1`                | notification delivery retries                                                            |
+| [`task.schedule`](#taskschedule)          | task only      | yes      | none                | trigger schedule                                                                         |
+| [`task.cmd`](#taskcmd)                    | task only      | yes      | none                | command to execute                                                                       |
 
 ## Options
 
@@ -576,6 +576,7 @@ Formula:
 ```text
 delay = min(max, initial * factor^attempt * (1 + jitter * random(0, 1)))
 ```
+
 - Validation:
   - invalid format strings fail configuration.
   - invalid duration parts fail configuration.
@@ -841,7 +842,7 @@ services:
     environment:
       run: compose
       stack_update.schedule: 02:00-04:00
-      stack_update.cmd: docker compose up -d --build --pull
+      stack_update.cmd: docker compose up -d --build --pull always
 ```
 
 ### Container Backup Every Hour
