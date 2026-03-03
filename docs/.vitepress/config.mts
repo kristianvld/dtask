@@ -65,6 +65,8 @@ export default defineConfig({
   title: 'dtask',
   description: 'Docker task runner for Docker Compose stacks',
   base,
+  // /latest/ exists only in dev (rewrites); redirect-root.md links to it for root redirect
+  ignoreDeadLinks: ['/latest/', '/latest/index'],
   rewrites: Object.keys(rewrites).length > 0 ? rewrites : undefined,
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }]],
   vite: {
