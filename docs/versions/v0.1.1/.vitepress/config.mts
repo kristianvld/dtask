@@ -21,12 +21,14 @@ const versionLink = (v: string) =>
     : (v === docsLatestVersion ? docsBasePath : `${docsBasePath}${v}/`)
 const versionNavItems = docsVersionList.map((v) => ({
   text: v === docsLatestVersion ? `${v} (latest)` : v,
-  link: versionLink(v)
+  link: versionLink(v),
+  ...(deployUrl && { target: '_self' as const })
 }))
 if (versionNavItems.length > 0) {
   versionNavItems.push({
     text: 'Edge',
-    link: deployUrl ? `${deployUrl}edge/` : `${docsBasePath}edge/`
+    link: deployUrl ? `${deployUrl}edge/` : `${docsBasePath}edge/`,
+    ...(deployUrl && { target: '_self' as const })
   })
 }
 

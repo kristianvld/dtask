@@ -53,10 +53,15 @@ const latestLink = isDev ? '/latest/' : deployUrl || docsBasePath
 
 const versionNavItems = docsVersionList.map((v) => ({
   text: v === docsLatestVersion ? `${v} (latest)` : v,
-  link: v === docsLatestVersion ? latestLink : versionLink(v)
+  link: v === docsLatestVersion ? latestLink : versionLink(v),
+  ...(deployUrl && { target: '_self' as const })
 }))
 if (versionNavItems.length > 0) {
-  versionNavItems.push({ text: 'Bleeding', link: edgeLink })
+  versionNavItems.push({
+    text: 'Bleeding',
+    link: edgeLink,
+    ...(deployUrl && { target: '_self' as const })
+  })
 }
 
 // Build rewrites for dev: /vX.Y.Z/, /bleeding/, /latest/, redirect-root at /
