@@ -37,10 +37,19 @@ const docsLatestVersion =
 // In dev: /vX.Y.Z/, /bleeding/, /latest/ (redirects to latest). Root / redirects to /latest/.
 // In prod: /base/vX.Y.Z/, /base/edge/ (we use "edge" in prod, "bleeding" in dev).
 const isDev = base === '/' && process.env.GITHUB_ACTIONS !== 'true'
+// Full URLs in prod avoid Vue Router prepending base (e.g. /dtask/v0.1.1/dtask/v0.1.0/)
+const deployUrl =
+  process.env.GITHUB_ACTIONS && process.env.GITHUB_REPOSITORY
+    ? `https://${process.env.GITHUB_REPOSITORY.split('/')[0]}.github.io/${repo}/`
+    : ''
 const versionLink = (v: string) =>
-  isDev ? `/${v}/` : (v === docsLatestVersion ? docsBasePath : `${docsBasePath}${v}/`)
-const edgeLink = isDev ? '/bleeding/' : `${docsBasePath}edge/`
-const latestLink = isDev ? '/latest/' : docsBasePath
+  isDev
+    ? `/${v}/`
+    : deployUrl
+      ? (v === docsLatestVersion ? deployUrl : `${deployUrl}${v}/`)
+      : (v === docsLatestVersion ? docsBasePath : `${docsBasePath}${v}/`)
+const edgeLink = isDev ? '/bleeding/' : deployUrl ? `${deployUrl}edge/` : `${docsBasePath}edge/`
+const latestLink = isDev ? '/latest/' : deployUrl || docsBasePath
 
 const versionNavItems = docsVersionList.map((v) => ({
   text: v === docsLatestVersion ? `${v} (latest)` : v,

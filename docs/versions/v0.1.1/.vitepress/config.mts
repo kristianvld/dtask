@@ -10,13 +10,24 @@ const docsVersionList = (process.env.DOCS_VERSION_LIST ?? '')
   .filter(Boolean)
 const docsLatestVersion = process.env.DOCS_LATEST_VERSION ?? ''
 
-// Version links use full URLs to avoid SPA navigation issues
+// Full URLs in prod avoid Vue Router prepending base (e.g. /dtask/v0.1.1/dtask/v0.1.0/)
+const deployUrl =
+  process.env.GITHUB_ACTIONS && process.env.GITHUB_REPOSITORY
+    ? `https://${process.env.GITHUB_REPOSITORY.split('/')[0]}.github.io/${repo}/`
+    : ''
+const versionLink = (v: string) =>
+  deployUrl
+    ? (v === docsLatestVersion ? deployUrl : `${deployUrl}${v}/`)
+    : (v === docsLatestVersion ? docsBasePath : `${docsBasePath}${v}/`)
 const versionNavItems = docsVersionList.map((v) => ({
   text: v === docsLatestVersion ? `${v} (latest)` : v,
-  link: v === docsLatestVersion ? docsBasePath : `${docsBasePath}${v}/`
+  link: versionLink(v)
 }))
 if (versionNavItems.length > 0) {
-  versionNavItems.push({ text: 'Edge', link: `${docsBasePath}edge/` })
+  versionNavItems.push({
+    text: 'Edge',
+    link: deployUrl ? `${deployUrl}edge/` : `${docsBasePath}edge/`
+  })
 }
 
 export default defineConfig({

@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import { useRoute } from 'vitepress'
-import { computed } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const route = useRoute()
+const currentVersion = ref<string | null>(null)
 
-// Derive current version from path: /v0.1.1/, /bleeding/, /edge/ (prod), etc.
-const currentVersion = computed(() => {
-  const path = route.path
+// Derive current version from path. In prod with base (e.g. /dtask/v0.1.1/), route.path
+// is base-relative, so we use window.location.pathname for the full path.
+function deriveVersion(path: string): string | null {
   const verMatch = path.match(/\/(v\d+\.\d+\.\d+)(?:\/|$)/)
   if (verMatch) return verMatch[1]
   if (path.endsWith('/bleeding') || path.endsWith('/bleeding/')) return 'Bleeding'
   if (path.endsWith('/edge') || path.endsWith('/edge/')) return 'Bleeding'
   if (path.endsWith('/latest') || path.endsWith('/latest/')) return 'Redirecting…'
   return null
+}
+
+onMounted(() => {
+  const path =
+    typeof window !== 'undefined' ? window.location.pathname : route.path
+  currentVersion.value = deriveVersion(path)
 })
 </script>
 
