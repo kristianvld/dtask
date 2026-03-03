@@ -94,6 +94,22 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
+# Snapshot docs to versions/ so this release is frozen
+echo "Snapshotting docs to docs/versions/${next_tag}..."
+mkdir -p "docs/versions/${next_tag}"
+rsync -a --delete \
+  --exclude='versions' \
+  --exclude='node_modules' \
+  --exclude='.vitepress/dist' \
+  --exclude='.vitepress/cache' \
+  --exclude='package.json' \
+  --exclude='bun.lock' \
+  --exclude='.gitignore' \
+  docs/ "docs/versions/${next_tag}/"
+
+git add "docs/versions/${next_tag}"
+git commit -m "docs: snapshot ${next_tag}"
+
 echo "Pushing branch ${branch}..."
 git push origin "$branch"
 

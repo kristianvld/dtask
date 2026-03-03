@@ -2,11 +2,6 @@ name: docs
 
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: 'Git ref (tag or branch) to build docs from, e.g. v0.1.0'
-        required: false
-        type: string
   push:
     branches: [main]
     tags: ['v*']
@@ -26,119 +21,106 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.ref != '' && github.event.inputs.ref || github.ref }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.10'
 
-      - name: Install dependencies
-        working-directory: docs
-        run: bun install --frozen-lockfile
-
       - name: Compute docs metadata
         id: meta
         run: |
           set -euo pipefail
+          repo="${GITHUB_REPOSITORY#*/}"
+          base_path="/${repo}/"
 
-          latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | awk 'NF{t=$0} END{print t}')"
-          if [[ -z "${latest_tag:-}" ]]; then
-            latest_tag="main"
+          versions=""
+          if [[ -d docs/versions ]]; then
+            versions="$(find docs/versions -mindepth 1 -maxdepth 1 -type d -name 'v[0-9]*.[0-9]*.[0-9]*' -exec basename {} \; | sort -Vr | tr '\n' ',' | sed 's/,$//')"
           fi
 
-          version_csv="$(python3 - <<'PY'
-          import re
-          import subprocess
-
-          out = subprocess.check_output(["git", "tag", "-l"], text=True)
-          tags = [t.strip() for t in out.splitlines() if re.fullmatch(r"v\d+\.\d+\.\d+", t.strip())]
-          tags.sort(key=lambda s: tuple(map(int, s[1:].split("."))), reverse=True)
-          print(",".join(tags))
-          PY
-          )"
-
-          input_ref="${{ github.event.inputs.ref }}"
-          if [[ -n "${input_ref}" ]]; then
-            if [[ "${input_ref}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              current="${input_ref}"
-              base="/${GITHUB_REPOSITORY#*/}/${current}/"
-              kind="tag"
-            else
-              current="${latest_tag}"
-              base="/${GITHUB_REPOSITORY#*/}/"
-              kind="branch"
-            fi
-          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            current="${GITHUB_REF_NAME}"
-            base="/${GITHUB_REPOSITORY#*/}/${current}/"
-            kind="tag"
-          else
-            current="${latest_tag}"
-            base="/${GITHUB_REPOSITORY#*/}/"
-            kind="branch"
+          latest=""
+          if [[ -n "${versions}" ]]; then
+            latest="$(echo "${versions}" | cut -d',' -f1)"
           fi
 
-          echo "latest=${latest_tag}" >> "$GITHUB_OUTPUT"
-          echo "current=${current}" >> "$GITHUB_OUTPUT"
-          echo "versions=${version_csv}" >> "$GITHUB_OUTPUT"
-          echo "base=${base}" >> "$GITHUB_OUTPUT"
-          echo "kind=${kind}" >> "$GITHUB_OUTPUT"
+          echo "base_path=${base_path}" >> "$GITHUB_OUTPUT"
+          echo "versions=${versions}" >> "$GITHUB_OUTPUT"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
 
-      - name: Build docs
+      - name: Install dependencies
+        working-directory: docs
+        run: bun install --frozen-lockfile
+
+      - name: Build edge docs
         working-directory: docs
         env:
-          VITEPRESS_BASE: ${{ steps.meta.outputs.base }}
-          DOCS_CURRENT_VERSION: ${{ steps.meta.outputs.current }}
-          DOCS_LATEST_VERSION: ${{ steps.meta.outputs.latest }}
+          VITEPRESS_BASE: ${{ steps.meta.outputs.base_path }}edge/
+          DOCS_BASE_PATH: ${{ steps.meta.outputs.base_path }}
           DOCS_VERSION_LIST: ${{ steps.meta.outputs.versions }}
+          DOCS_LATEST_VERSION: ${{ steps.meta.outputs.latest }}
         run: bun run build
+
+      - name: Build version docs
+        working-directory: docs
+        env:
+          base_path: ${{ steps.meta.outputs.base_path }}
+          versions: ${{ steps.meta.outputs.versions }}
+          latest: ${{ steps.meta.outputs.latest }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${versions}" ]]; then
+            echo "No version folders found"
+            exit 0
+          fi
+          IFS=',' read -r -a ver_arr <<< "${versions}"
+          for ver in "${ver_arr[@]}"; do
+            [[ -z "${ver}" ]] && continue
+            [[ ! -d "versions/${ver}" ]] && continue
+            echo "Building versions/${ver}..."
+            VITEPRESS_BASE="${base_path}${ver}/" \
+            DOCS_BASE_PATH="${base_path}" \
+            DOCS_VERSION_LIST="${versions}" \
+            DOCS_LATEST_VERSION="${latest}" \
+            bunx vitepress build "versions/${ver}"
+          done
 
       - name: Prepare deploy directory
         run: |
           set -euo pipefail
+          base_path="${{ steps.meta.outputs.base_path }}"
+          versions="${{ steps.meta.outputs.versions }}"
+          latest="${{ steps.meta.outputs.latest }}"
+
           mkdir -p .deploy
 
-          versions_csv="${{ steps.meta.outputs.versions }}"
-          if [[ -n "${versions_csv}" ]]; then
-            IFS=',' read -r -a versions <<< "${versions_csv}"
-            for version in "${versions[@]}"; do
-              [[ -z "${version}" ]] && continue
+          # Root = latest release (or edge if no versions)
+          if [[ -n "${latest}" ]]; then
+            cp -a "docs/versions/${latest}/.vitepress/dist/." .deploy/
+          else
+            cp -a docs/.vitepress/dist/. .deploy/
+          fi
 
-              wt_dir="$(mktemp -d)"
-              git worktree add --detach "${wt_dir}" "refs/tags/${version}"
-              (
-                cd "${wt_dir}/docs"
-                bun install --frozen-lockfile
-                VITEPRESS_BASE="/${GITHUB_REPOSITORY#*/}/${version}/" \
-                DOCS_CURRENT_VERSION="${version}" \
-                DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
-                DOCS_VERSION_LIST="${versions_csv}" \
-                bun run build
-              )
+          # Edge at /edge/
+          mkdir -p .deploy/edge
+          cp -a docs/.vitepress/dist/. .deploy/edge/
 
-              mkdir -p ".deploy/${version}"
-              cp -a "${wt_dir}/docs/.vitepress/dist/." ".deploy/${version}/"
-              git worktree remove --force "${wt_dir}"
+          # Each version at /vX.Y.Z/
+          if [[ -n "${versions}" ]]; then
+            IFS=',' read -r -a ver_arr <<< "${versions}"
+            for ver in "${ver_arr[@]}"; do
+              [[ -z "${ver}" ]] && continue
+              [[ ! -d "docs/versions/${ver}/.vitepress/dist" ]] && continue
+              mkdir -p ".deploy/${ver}"
+              cp -a "docs/versions/${ver}/.vitepress/dist/." ".deploy/${ver}/"
             done
           fi
 
-          if [[ "${{ steps.meta.outputs.kind }}" != "tag" || "${{ steps.meta.outputs.current }}" == "${{ steps.meta.outputs.latest }}" ]]; then
-            root_base="/${GITHUB_REPOSITORY#*/}/"
-            VITEPRESS_BASE="${root_base}" \
-            DOCS_CURRENT_VERSION="${{ steps.meta.outputs.latest }}" \
-            DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
-            DOCS_VERSION_LIST="${{ steps.meta.outputs.versions }}" \
-            sh -c 'cd docs && bun run build'
-
-            cp -a docs/.vitepress/dist/. .deploy/
-
-            # Generate dynamic badge endpoints for GHCR image sizes (latest tag).
-            mkdir -p .deploy/badges
-            IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY_OWNER}/dtask" \
-            BADGE_OUTPUT_DIR=".deploy/badges" \
-            python3 scripts/generate_ghcr_size_badges.py
-          fi
+          # Generate dynamic badge endpoints for GHCR image sizes
+          mkdir -p .deploy/badges
+          IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY_OWNER}/dtask" \
+          BADGE_OUTPUT_DIR=".deploy/badges" \
+          python3 scripts/generate_ghcr_size_badges.py
 
       - name: Deploy docs to gh-pages
         uses: peaceiris/actions-gh-pages@v4
@@ -146,4 +128,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: .deploy
           publish_branch: gh-pages
-          keep_files: true
+          force_orphan: true

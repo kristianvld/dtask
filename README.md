@@ -6,10 +6,6 @@ Lightweight Docker task runner for Docker Compose stacks.
   <img src="./docs/public/logo.svg" alt="dtask logo" style="max-width: 16em; width:40%; min-width: 7em; background-color: #fff; padding: 1em; border-radius: 2em; border: 0.5em solid #26457D;">
 </p>
 
-- Docs: <https://kristianvld.github.io/dtask/>
-- Repo: <https://github.com/kristianvld/dtask>
-- Image: `ghcr.io/kristianvld/dtask`
-
 [![CI](https://github.com/kristianvld/dtask/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/ci.yml)
 [![Docs](https://github.com/kristianvld/dtask/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/docs.yml)
 [![Release](https://github.com/kristianvld/dtask/actions/workflows/release.yml/badge.svg)](https://github.com/kristianvld/dtask/actions/workflows/release.yml)
