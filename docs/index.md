@@ -6,8 +6,6 @@
 
 `dtask` is a lightweight Docker task runner designed for Docker Compose.
 
-Documentation site: <https://kristianvld.github.io/dtask/>
-
 > [!WARNING]
 > `run=host` and `run=compose` rely on Linux host primitives (`chroot`, host mount layout, and Docker metadata paths). On Docker Desktop (macOS/Windows), these modes can behave unexpectedly due to the Linux VM abstraction. Prefer `run=container` there unless you have validated your setup end-to-end.
 
