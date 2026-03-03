@@ -99,25 +99,37 @@ jobs:
           set -euo pipefail
           mkdir -p .deploy
 
-          # Preserve previously published version folders and assets.
-          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-            git archive origin/gh-pages | tar -x -C .deploy
-          fi
+          versions_csv="${{ steps.meta.outputs.versions }}"
+          if [[ -n "${versions_csv}" ]]; then
+            IFS=',' read -r -a versions <<< "${versions_csv}"
+            for version in "${versions[@]}"; do
+              [[ -z "${version}" ]] && continue
 
-          if [[ "${{ steps.meta.outputs.kind }}" == "tag" ]]; then
-            mkdir -p ".deploy/${{ steps.meta.outputs.current }}"
-            cp -a docs/.vitepress/dist/. ".deploy/${{ steps.meta.outputs.current }}/"
+              wt_dir="$(mktemp -d)"
+              git worktree add --detach "${wt_dir}" "refs/tags/${version}"
+              (
+                cd "${wt_dir}/docs"
+                bun install --frozen-lockfile
+                VITEPRESS_BASE="/${GITHUB_REPOSITORY#*/}/${version}/" \
+                DOCS_CURRENT_VERSION="${version}" \
+                DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
+                DOCS_VERSION_LIST="${versions_csv}" \
+                bun run build
+              )
+
+              mkdir -p ".deploy/${version}"
+              cp -a "${wt_dir}/docs/.vitepress/dist/." ".deploy/${version}/"
+              git worktree remove --force "${wt_dir}"
+            done
           fi
 
           if [[ "${{ steps.meta.outputs.kind }}" != "tag" || "${{ steps.meta.outputs.current }}" == "${{ steps.meta.outputs.latest }}" ]]; then
-            if [[ "${{ steps.meta.outputs.kind }}" == "tag" ]]; then
-              root_base="/${GITHUB_REPOSITORY#*/}/"
-              VITEPRESS_BASE="${root_base}" \
-              DOCS_CURRENT_VERSION="${{ steps.meta.outputs.latest }}" \
-              DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
-              DOCS_VERSION_LIST="${{ steps.meta.outputs.versions }}" \
-              sh -c 'cd docs && bun run build'
-            fi
+            root_base="/${GITHUB_REPOSITORY#*/}/"
+            VITEPRESS_BASE="${root_base}" \
+            DOCS_CURRENT_VERSION="${{ steps.meta.outputs.latest }}" \
+            DOCS_LATEST_VERSION="${{ steps.meta.outputs.latest }}" \
+            DOCS_VERSION_LIST="${{ steps.meta.outputs.versions }}" \
+            sh -c 'cd docs && bun run build'
 
             cp -a docs/.vitepress/dist/. .deploy/
 

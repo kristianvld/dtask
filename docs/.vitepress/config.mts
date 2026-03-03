@@ -9,15 +9,15 @@ const docsVersionList = (process.env.DOCS_VERSION_LIST ?? '')
   .split(',')
   .map((v) => v.trim())
   .filter(Boolean)
-const rootBase = process.env.GITHUB_ACTIONS === 'true' && !isUserSite ? `/${repo}/` : '/'
 const atLatest = docsCurrentVersion === docsLatestVersion
 const currentLabel = atLatest ? `${docsCurrentVersion} (latest)` : docsCurrentVersion
+const versionBasePrefix = atLatest ? './' : '../'
 const versionNavItems = docsVersionList.map((v) => ({
   text: v === docsLatestVersion ? `${v} (latest)` : v,
-  link: v === docsLatestVersion ? rootBase : `${rootBase}${v}/`
+  link: v === docsLatestVersion ? versionBasePrefix : `${versionBasePrefix}${v}/`
 }))
 const resolvedVersionItems =
-  versionNavItems.length > 0 ? versionNavItems : [{ text: currentLabel, link: rootBase }]
+  versionNavItems.length > 0 ? versionNavItems : [{ text: currentLabel, link: versionBasePrefix }]
 
 export default defineConfig({
   title: 'dtask',

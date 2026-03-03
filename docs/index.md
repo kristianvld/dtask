@@ -8,10 +8,12 @@
 
 Documentation site: <https://kristianvld.github.io/dtask/>
 
-[![Version](https://img.shields.io/github/v/tag/kristianvld/dtask?sort=semver&label=version)](https://github.com/kristianvld/dtask/tags)
-[![CI](https://github.com/kristianvld/dtask/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/ci.yml)
-[![Docs](https://github.com/kristianvld/dtask/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/kristianvld/dtask/actions/workflows/docs.yml)
-[![Image](https://img.shields.io/badge/image-ghcr.io%2Fkristianvld%2Fdtask-blue)](https://github.com/kristianvld/dtask/pkgs/container/dtask)
+<p>
+  <a href="https://github.com/kristianvld/dtask/tags"><img src="https://img.shields.io/github/v/tag/kristianvld/dtask?sort=semver&label=version" alt="Version"></a>
+  <a href="https://github.com/kristianvld/dtask/actions/workflows/ci.yml"><img src="https://github.com/kristianvld/dtask/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/kristianvld/dtask/actions/workflows/docs.yml"><img src="https://github.com/kristianvld/dtask/actions/workflows/docs.yml/badge.svg?branch=main" alt="Docs"></a>
+  <a href="https://github.com/kristianvld/dtask/pkgs/container/dtask"><img src="https://img.shields.io/badge/image-ghcr.io%2Fkristianvld%2Fdtask-blue" alt="Image"></a>
+</p>
 
 > [!WARNING]
 > `run=host` and `run=compose` rely on Linux host primitives (`chroot`, host mount layout, and Docker metadata paths). On Docker Desktop (macOS/Windows), these modes can behave unexpectedly due to the Linux VM abstraction. Prefer `run=container` there unless you have validated your setup end-to-end.
