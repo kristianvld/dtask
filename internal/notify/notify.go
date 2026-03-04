@@ -71,7 +71,7 @@ def take(name, default_value):
     value = (values[-1] or "").strip()
     return value if value else default_value
 
-image_url_logo = take("image_url_logo", "https://raw.githubusercontent.com/kristianvld/dtask/main/docs/public/logo.png")
+image_url_logo = take("image_url_logo", "https://raw.githubusercontent.com/kristianvld/dtask/main/docs/public/favicon.png")
 image_url_mask = take("image_url_mask", image_url_logo)
 
 asset = apprise.AppriseAsset(
