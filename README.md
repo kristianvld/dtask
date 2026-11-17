@@ -133,3 +133,9 @@ The script:
 - handles initial release when no prior tags exist
 - asks for confirmation before pushing
 - pushes local branch commits first, then creates and pushes the new semver tag
+
+## Security boundary
+
+Host and Compose modes execute trusted administrator commands with host access. Anyone who can edit those tasks effectively controls the host. Keep task configuration private, configure timeouts for bounded jobs, and attach logs only when their output is safe to disclose. Task logs are private; cancellation terminates the command process group.
+
+The runtime pins Apprise through `requirements.txt`; docs retain stable VitePress with a tested patched Vite 6 override.

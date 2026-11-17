@@ -61,6 +61,40 @@ func TestRunContainerMode(t *testing.T) {
 	if _, err := os.Stat(res.LogPath); err != nil {
 		t.Fatalf("log file missing: %v", err)
 	}
+	info, err := os.Stat(res.LogPath)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("log must be private: %v", err)
+	}
+	info, err = os.Stat(filepath.Dir(res.LogPath))
+	if err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("log directory must be private: %v", err)
+	}
+	second := r.Run(context.Background(), task, runtime.Prepared{}, 1)
+	if !second.Success || second.LogPath == res.LogPath {
+		t.Fatal("repeated attempts must not overwrite previous logs")
+	}
+}
+
+func TestTimeoutStopsChildProcesses(t *testing.T) {
+	t.Parallel()
+	marker := filepath.Join(t.TempDir(), "child-survived")
+	task := config.Task{
+		Name:    "child",
+		Options: config.Options{Run: config.RunContainer, CWD: ".", ShellArgv: []string{"/bin/sh", "-lc"}, Timeout: 50 * time.Millisecond},
+		Cmd:     "(sleep 1.5; touch " + shellQuote(marker) + ") & wait",
+	}
+	r := NewRunner(filepath.Join(t.TempDir(), "logs"))
+	res := r.Run(context.Background(), task, runtime.Prepared{}, 1)
+	if !res.TimedOut {
+		t.Fatalf("expected timeout: %v", res.Err)
+	}
+	if res.Duration > time.Second {
+		t.Fatalf("child kept the command alive after its timeout: %v", res.Duration)
+	}
+	time.Sleep(1600 * time.Millisecond)
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("timed-out child process survived")
+	}
 }
 
 func TestRunTimeout(t *testing.T) {

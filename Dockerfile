@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.26-alpine AS build
+FROM golang:1.26.11-alpine@sha256:ecb67f987aa1a57794c91d19ade7ae0209f2f0f5496aaef9e6ae85ddf92d02ab AS build
 WORKDIR /src
 ARG TARGETOS
 ARG TARGETARCH
@@ -16,25 +16,18 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -ldflags "-s -w -X github.com/kristianvld/dtask/internal/version.Version=${VERSION} -X github.com/kristianvld/dtask/internal/version.Commit=${COMMIT} -X github.com/kristianvld/dtask/internal/version.Date=${BUILD_DATE}" \
       -o /out/dtask ./cmd/dtask
 
-FROM alpine:3.21
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+COPY requirements.txt /tmp/requirements.txt
 RUN apk add --no-cache \
     bash \
     busybox \
     ca-certificates \
     coreutils \
     python3 \
-    py3-pip \
     tzdata \
-  && pip3 install --no-cache-dir --break-system-packages apprise \
-  && apk del --no-network \
-    py3-pip \
-    py3-setuptools \
-    py3-packaging \
-    py3-parsing \
-    py3-pip-pyc \
-    py3-setuptools-pyc \
-    py3-packaging-pyc \
-    py3-parsing-pyc \
+  && apk add --no-cache --virtual .pip-build py3-pip \
+  && pip3 install --require-hashes --no-cache-dir --break-system-packages -r /tmp/requirements.txt \
+  && apk del --no-cache .pip-build \
   && adduser -D -h /home/dtask dtask \
   && mkdir -p /tmp/dtask/logs \
   && rm -rf /root/.cache /tmp/*

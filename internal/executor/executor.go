@@ -54,13 +54,19 @@ func (r *Runner) Run(ctx context.Context, task config.Task, prepared runtime.Pre
 	}
 
 	logDir := filepath.Join(r.LogRoot, task.Name)
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		res.Err = fmt.Errorf("create log dir: %w", err)
 		res.EndedAt = time.Now()
 		res.Duration = res.EndedAt.Sub(started)
 		return res
 	}
-	logFile, err := os.Create(filepath.Join(logDir, fmt.Sprintf("%d-attempt-%d.log", started.Unix(), attempt)))
+	if err := os.Chmod(logDir, 0o700); err != nil {
+		res.Err = fmt.Errorf("secure log dir: %w", err)
+		res.EndedAt = time.Now()
+		res.Duration = res.EndedAt.Sub(started)
+		return res
+	}
+	logFile, err := os.CreateTemp(logDir, fmt.Sprintf("%d-attempt-%d-*.log", started.Unix(), attempt))
 	if err != nil {
 		res.Err = fmt.Errorf("create log file: %w", err)
 		res.EndedAt = time.Now()
@@ -87,6 +93,18 @@ func (r *Runner) Run(ctx context.Context, task config.Task, prepared runtime.Pre
 
 	cmd.Stdout = io.MultiWriter(os.Stdout, logFile)
 	cmd.Stderr = io.MultiWriter(os.Stderr, logFile)
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setpgid = true
+	cmd.Cancel = func() error {
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	cmd.WaitDelay = time.Second
 
 	err = cmd.Run()
 	res.EndedAt = time.Now()

@@ -115,6 +115,8 @@ func (a *App) logStartup() {
 
 func (a *App) runTaskLoop(ctx context.Context, task config.Task) {
 	loc := runtime.ResolveLocation(task, a.prepared)
+	var executions sync.WaitGroup
+	defer executions.Wait()
 	tickCh := make(chan time.Time, 1)
 	doneCh := make(chan struct{}, 1)
 	running := false
@@ -134,7 +136,9 @@ func (a *App) runTaskLoop(ctx context.Context, task config.Task) {
 				continue
 			}
 			running = true
+			executions.Add(1)
 			go func() {
+				defer executions.Done()
 				a.executeTaskWithPolicy(ctx, task)
 				doneCh <- struct{}{}
 			}()

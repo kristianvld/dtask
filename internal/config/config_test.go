@@ -26,7 +26,7 @@ func TestParseEnvironmentValidAllOptions(t *testing.T) {
 		"retry=2",
 		"backoff=fixed:15s",
 		"notify=retry",
-		"notify_url=discord://webhook_id/webhook_token",
+		"notify_url=discord://webhook_id/webhook_token", // gitleaks:allow -- placeholder fixture
 		"notify_attach_log=never",
 		"notify_backoff=exp:10s:2m:2:0.1",
 		"notify_retry=3",
